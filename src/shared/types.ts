@@ -61,6 +61,53 @@ export const MoveTicketInput = z.object({
 });
 export type MoveTicketInput = z.infer<typeof MoveTicketInput>;
 
+export const Note = z.object({
+  id: z.string(),
+  projectId: z.string().nullable(),
+  title: z.string(),
+  body: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Note = z.infer<typeof Note>;
+
+export const CreateNoteInput = z.object({
+  projectId: z.string().nullable().optional(),
+  title: z.string().min(1),
+  body: z.string().optional(),
+});
+export type CreateNoteInput = z.infer<typeof CreateNoteInput>;
+
+export const UpdateNoteInput = z.object({
+  title: z.string().min(1).optional(),
+  body: z.string().optional(),
+});
+export type UpdateNoteInput = z.infer<typeof UpdateNoteInput>;
+
+export const Task = z.object({
+  id: z.string(),
+  projectId: z.string().nullable(),
+  title: z.string(),
+  done: z.boolean(),
+  due: z.number().nullable(),
+  createdAt: z.number(),
+});
+export type Task = z.infer<typeof Task>;
+
+export const CreateTaskInput = z.object({
+  projectId: z.string().nullable().optional(),
+  title: z.string().min(1),
+  due: z.number().nullable().optional(),
+});
+export type CreateTaskInput = z.infer<typeof CreateTaskInput>;
+
+export const UpdateTaskInput = z.object({
+  title: z.string().min(1).optional(),
+  done: z.boolean().optional(),
+  due: z.number().nullable().optional(),
+});
+export type UpdateTaskInput = z.infer<typeof UpdateTaskInput>;
+
 export const DirEntry = z.object({
   name: z.string(),
   path: z.string(),

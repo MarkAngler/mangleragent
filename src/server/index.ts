@@ -10,6 +10,8 @@ import { createWsHub } from "./realtime/hub";
 import { healthRouter } from "./api/health";
 import { projectsRouter } from "./api/projects";
 import { ticketsRouter } from "./api/tickets";
+import { notesRouter } from "./api/notes";
+import { tasksRouter } from "./api/tasks";
 import { fsRouter } from "./api/fs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +26,8 @@ function main(): void {
   app.use("/api", healthRouter);
   app.use("/api", projectsRouter);
   app.use("/api", ticketsRouter);
+  app.use("/api", notesRouter);
+  app.use("/api", tasksRouter);
   app.use("/api", fsRouter);
 
   const indexHtml = path.join(clientDir, "index.html");
