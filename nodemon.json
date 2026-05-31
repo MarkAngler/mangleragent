@@ -1,0 +1,6 @@
+{
+  "watch": ["src/server", "src/shared"],
+  "ext": "ts,json",
+  "env": { "MANGLED_DEV": "1", "PORT": "4173" },
+  "exec": "tsx src/server/index.ts"
+}
