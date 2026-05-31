@@ -294,7 +294,7 @@ function TicketEditor({
           </Button>
         </div>
         <p className="mt-2 text-[12px] leading-relaxed text-muted">
-          Delegate spawns a Claude Code agent that plans first. It runs autonomously after the plan is approved — by Mangler or by you, in Active Agents.
+          Delegate runs an autonomous agent via the Claude Agent SDK (in-process, calling the Anthropic API — not the interactive Claude Code terminal). It plans first, then runs on its own once the plan is approved — by Mangler or by you, in Active Agents.
         </p>
       </div>
 
