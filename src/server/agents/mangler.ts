@@ -1,7 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { env } from "../env";
 import { messagesRepo } from "../db/chat";
 import { broadcast } from "../realtime/hub";
+import { getAnthropic } from "./anthropic";
 import { anthropicTools, runTool } from "./manglerTools";
 
 export const DEFAULT_MANGLER_MODEL = "claude-sonnet-4-6";
@@ -17,12 +18,6 @@ Guidelines:
 - If a request is ambiguous, ask one focused question rather than guessing.`;
 
 const MAX_TURNS = 12;
-
-let client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!client) client = new Anthropic({ apiKey: env.anthropicApiKey });
-  return client;
-}
 
 function summarize(name: string, output: unknown): string | undefined {
   if (output && typeof output === "object" && "error" in output) return `error: ${String((output as { error: unknown }).error)}`;
@@ -56,7 +51,7 @@ export async function runMangler(conversationId: string, model = DEFAULT_MANGLER
 
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const stream = getClient().messages.stream({
+      const stream = getAnthropic().messages.stream({
         model,
         max_tokens: 4096,
         system: SYSTEM,

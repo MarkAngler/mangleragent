@@ -142,6 +142,46 @@ export const CreatePtyRunInput = z.object({
 });
 export type CreatePtyRunInput = z.infer<typeof CreatePtyRunInput>;
 
+export const CreateOrchestratedRunInput = z.object({
+  projectId: z.string(),
+  ticketId: z.string().nullable().optional(),
+  prompt: z.string().optional(),
+  approver: Approver.optional(),
+  model: z.string().optional(),
+});
+export type CreateOrchestratedRunInput = z.infer<typeof CreateOrchestratedRunInput>;
+
+export const AgentEvent = z.object({
+  id: z.number(),
+  runId: z.string(),
+  seq: z.number(),
+  type: z.string(),
+  payload: z.unknown(),
+  createdAt: z.number(),
+});
+export type AgentEvent = z.infer<typeof AgentEvent>;
+
+export const PermissionRequest = z.object({
+  id: z.string(),
+  runId: z.string(),
+  toolName: z.string(),
+  input: z.unknown(),
+  kind: z.enum(["tool", "plan"]),
+  status: z.enum(["pending", "approved", "denied"]),
+  approver: Approver,
+  decidedBy: z.string().nullable(),
+  reason: z.string().nullable(),
+  createdAt: z.number(),
+  decidedAt: z.number().nullable(),
+});
+export type PermissionRequest = z.infer<typeof PermissionRequest>;
+
+export const DecideInput = z.object({
+  approved: z.boolean(),
+  reason: z.string().optional(),
+});
+export type DecideInput = z.infer<typeof DecideInput>;
+
 export const Conversation = z.object({
   id: z.string(),
   title: z.string(),

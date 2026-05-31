@@ -5,6 +5,7 @@ import { useWsMessage } from "../lib/ws";
 import type { AgentRun, AgentRunStatus, Project } from "../../shared/types";
 import { Button, EmptyState, Mono, PageHeader, StatusDot } from "../components/ui";
 import { Terminal } from "../components/Terminal";
+import { OrchestratedRunView } from "../components/OrchestratedRunView";
 
 const STATUS_TONE: Record<AgentRunStatus, "idle" | "good" | "warn" | "bad" | "accent"> = {
   planning: "accent",
@@ -101,9 +102,7 @@ export function ActiveAgentsPage() {
                   {selected.kind === "pty" ? (
                     <Terminal key={selected.id} runId={selected.id} />
                   ) : (
-                    <div className="grid h-full place-items-center rounded-lg border border-hairline text-sm text-faint">
-                      Orchestrated agent transcript.
-                    </div>
+                    <OrchestratedRunView key={selected.id} run={selected} />
                   )}
                 </div>
               </div>

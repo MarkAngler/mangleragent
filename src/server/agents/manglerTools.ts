@@ -6,6 +6,9 @@ import { notesRepo } from "../db/notes";
 import { tasksRepo } from "../db/tasks";
 import { appendPosition } from "../../shared/board";
 import { broadcast } from "../realtime/hub";
+import { runsRepo } from "../db/runs";
+import { startOrchestratedRun } from "./orchestrator";
+import { Approver } from "../../shared/types";
 
 interface ErasedTool {
   name: string;
@@ -126,6 +129,37 @@ const defs: ErasedTool[] = [
     description: "Create a task. Omit projectId for a global task.",
     schema: z.object({ title: z.string(), projectId: z.string().nullable().optional() }),
     handler: (input) => tasksRepo.create(input),
+  }),
+  tool({
+    name: "delegate_ticket",
+    description:
+      "Spawn a Claude Code agent to work a ticket in its project folder. The agent first proposes a plan; with approver 'agent' you (Mangler) review and approve it, then it executes autonomously. Use approver 'human' to route plan approval to the user instead.",
+    schema: z.object({
+      ticketId: z.string(),
+      approver: Approver.optional(),
+      instructions: z.string().optional(),
+    }),
+    handler: ({ ticketId, approver, instructions }) => {
+      const ticket = ticketsRepo.get(ticketId);
+      if (!ticket) return { error: "ticket not found" };
+      const project = projectsRepo.get(ticket.projectId);
+      if (!project) return { error: "project not found" };
+      const run = runsRepo.create({
+        projectId: project.id,
+        ticketId: ticket.id,
+        kind: "orchestrated",
+        title: `Agent · ${ticket.title}`,
+        status: "planning",
+        approver: approver ?? "agent",
+        permissionMode: "plan",
+        cwd: project.path,
+      });
+      const prompt =
+        instructions ?? `Work on this ticket and implement it.\n\nTitle: ${ticket.title}\n\n${ticket.body || "(no description)"}`;
+      void startOrchestratedRun(run, prompt);
+      broadcast({ type: "run.updated", runId: run.id });
+      return { runId: run.id, status: "started", approver: run.approver };
+    },
   }),
 ];
 

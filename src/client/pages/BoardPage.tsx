@@ -47,6 +47,11 @@ export function BoardPage() {
     mutationFn: (vars: { ticketId?: string }) => post<AgentRun>("/runs/pty", { projectId, ticketId: vars.ticketId ?? null }),
     onSuccess: (run) => navigate(`/agents?run=${run.id}`),
   });
+  const delegate = useMutation({
+    mutationFn: (vars: { ticketId: string; approver: "human" | "agent" }) =>
+      post<AgentRun>("/runs/orchestrated", { projectId, ticketId: vars.ticketId, approver: vars.approver }),
+    onSuccess: (run) => navigate(`/agents?run=${run.id}`),
+  });
 
   const move = useMutation({
     mutationFn: (vars: { id: string; columnId: string; position: number }) =>
@@ -199,6 +204,7 @@ export function BoardPage() {
               })
             }
             onOpenTerminal={() => openTerminal.mutate({ ticketId: openTicket.id })}
+            onDelegate={(approver) => delegate.mutate({ ticketId: openTicket.id, approver })}
             onDelete={() => {
               remove.mutate(openTicket.id);
               setOpenTicketId(null);
@@ -216,6 +222,7 @@ function TicketEditor({
   onSave,
   onMoveColumn,
   onOpenTerminal,
+  onDelegate,
   onDelete,
 }: {
   ticket: Ticket;
@@ -223,11 +230,13 @@ function TicketEditor({
   onSave: (patch: Partial<Pick<Ticket, "title" | "body" | "labels">>) => void;
   onMoveColumn: (columnId: string) => void;
   onOpenTerminal: () => void;
+  onDelegate: (approver: "human" | "agent") => void;
   onDelete: () => void;
 }) {
   const [title, setTitle] = useState(ticket.title);
   const [body, setBody] = useState(ticket.body);
   const [labels, setLabels] = useState(ticket.labels.join(", "));
+  const [approver, setApprover] = useState<"agent" | "human">("agent");
 
   const commit = () =>
     onSave({
@@ -270,9 +279,23 @@ function TicketEditor({
 
       <div className="border-t border-hairline pt-4">
         <Mono>agents</Mono>
-        <div className="mt-2">
-          <Button onClick={onOpenTerminal}>Open terminal in project</Button>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button onClick={onOpenTerminal}>Open terminal</Button>
+          <select
+            value={approver}
+            onChange={(e) => setApprover(e.target.value as "agent" | "human")}
+            className="rounded-md border border-hairline-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent"
+          >
+            <option value="agent">Mangler approves</option>
+            <option value="human">I approve</option>
+          </select>
+          <Button variant="solid" onClick={() => onDelegate(approver)}>
+            Delegate
+          </Button>
         </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-muted">
+          Delegate spawns a Claude Code agent that plans first. It runs autonomously after the plan is approved — by Mangler or by you, in Active Agents.
+        </p>
       </div>
 
       <div className="flex items-center justify-between pt-2">
