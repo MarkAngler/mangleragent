@@ -198,6 +198,36 @@ export const ChatMessage = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
+export const DefKind = z.enum(["agent", "skill", "rule"]);
+export type DefKind = z.infer<typeof DefKind>;
+
+export const DefEntry = z.object({
+  kind: DefKind,
+  name: z.string(),
+  description: z.string(),
+  path: z.string(),
+});
+export type DefEntry = z.infer<typeof DefEntry>;
+
+export const DefFile = z.object({
+  kind: DefKind,
+  name: z.string(),
+  path: z.string(),
+  content: z.string(),
+});
+export type DefFile = z.infer<typeof DefFile>;
+
+const defName = z
+  .string()
+  .min(1)
+  .regex(/^[a-zA-Z0-9_-]+$/, "name may contain only letters, numbers, dashes and underscores");
+
+export const CreateDefInput = z.object({ scope: z.string().min(1), kind: DefKind, name: defName });
+export type CreateDefInput = z.infer<typeof CreateDefInput>;
+
+export const SaveDefInput = z.object({ scope: z.string().min(1), kind: DefKind, name: defName, content: z.string() });
+export type SaveDefInput = z.infer<typeof SaveDefInput>;
+
 export const DirEntry = z.object({
   name: z.string(),
   path: z.string(),
