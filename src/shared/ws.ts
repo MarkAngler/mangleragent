@@ -2,16 +2,25 @@ import { z } from "zod";
 
 /**
  * Messages the server pushes to clients over the multiplexed `/ws` socket.
- * Grows per feature phase; PTY byte streams use the separate `/ws/term` socket.
+ * PTY byte streams use the separate `/ws/term` socket, not this envelope.
  */
 export const ServerMsg = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hello"), serverTime: z.string() }),
   z.object({ type: z.literal("board.updated"), projectId: z.string() }),
+
+  // Mangler streaming chat
+  z.object({ type: z.literal("mangler.delta"), conversationId: z.string(), text: z.string() }),
+  z.object({
+    type: z.literal("mangler.tool"),
+    conversationId: z.string(),
+    tool: z.string(),
+    phase: z.enum(["start", "done"]),
+    summary: z.string().optional(),
+  }),
+  z.object({ type: z.literal("mangler.done"), conversationId: z.string() }),
+  z.object({ type: z.literal("mangler.error"), conversationId: z.string(), error: z.string() }),
 ]);
 export type ServerMsg = z.infer<typeof ServerMsg>;
 
-/** Messages clients send to the server over `/ws`. */
-export const ClientMsg = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("ping") }),
-]);
+export const ClientMsg = z.discriminatedUnion("type", [z.object({ type: z.literal("ping") })]);
 export type ClientMsg = z.infer<typeof ClientMsg>;

@@ -108,6 +108,22 @@ export const UpdateTaskInput = z.object({
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInput>;
 
+export const Conversation = z.object({
+  id: z.string(),
+  title: z.string(),
+  createdAt: z.number(),
+});
+export type Conversation = z.infer<typeof Conversation>;
+
+export const ChatMessage = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.unknown(),
+  createdAt: z.number(),
+});
+export type ChatMessage = z.infer<typeof ChatMessage>;
+
 export const DirEntry = z.object({
   name: z.string(),
   path: z.string(),

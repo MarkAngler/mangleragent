@@ -12,6 +12,7 @@ import { projectsRouter } from "./api/projects";
 import { ticketsRouter } from "./api/tickets";
 import { notesRouter } from "./api/notes";
 import { tasksRouter } from "./api/tasks";
+import { manglerRouter } from "./api/mangler";
 import { fsRouter } from "./api/fs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -28,6 +29,7 @@ function main(): void {
   app.use("/api", ticketsRouter);
   app.use("/api", notesRouter);
   app.use("/api", tasksRouter);
+  app.use("/api", manglerRouter);
   app.use("/api", fsRouter);
 
   const indexHtml = path.join(clientDir, "index.html");
