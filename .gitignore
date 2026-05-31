@@ -1,1 +1,10 @@
+node_modules
+dist
+*.tgz
+.DS_Store
 .env
+.env.*
+!.env.example
+
+# user scratch note
+step 1 - build.md

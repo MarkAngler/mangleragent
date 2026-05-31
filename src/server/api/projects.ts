@@ -1,0 +1,52 @@
+import { Router } from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { projectsRepo } from "../db/projects";
+import { CreateProjectInput } from "../../shared/types";
+
+export const projectsRouter = Router();
+
+projectsRouter.get("/projects", (_req, res) => {
+  res.json(projectsRepo.list());
+});
+
+projectsRouter.get("/projects/:id", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  res.json(project);
+});
+
+projectsRouter.post("/projects", (req, res) => {
+  const parsed = CreateProjectInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "invalid input" });
+    return;
+  }
+  const abs = path.resolve(parsed.data.path);
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(abs);
+  } catch {
+    res.status(400).json({ error: `path does not exist: ${abs}` });
+    return;
+  }
+  if (!stat.isDirectory()) {
+    res.status(400).json({ error: "path is not a directory" });
+    return;
+  }
+  const existing = projectsRepo.findByPath(abs);
+  if (existing) {
+    res.status(409).json({ error: "a project already points at this folder", project: existing });
+    return;
+  }
+  const project = projectsRepo.create({ path: abs, name: parsed.data.name });
+  res.status(201).json(project);
+});
+
+projectsRouter.delete("/projects/:id", (req, res) => {
+  const removed = projectsRepo.remove(req.params.id);
+  res.status(removed ? 204 : 404).end();
+});
