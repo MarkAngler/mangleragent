@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode } from "react";
 
 export function Mono({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <span className={`micro ${className}`}>{children}</span>;
@@ -58,6 +58,46 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-hairline-strong py-20 text-center">
       <p className="text-sm font-medium text-ink">{title}</p>
       {hint && <p className="mt-1 max-w-sm text-sm text-muted">{hint}</p>}
+    </div>
+  );
+}
+
+export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className={`w-full rounded-md border border-hairline-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent ${className}`}
+    />
+  );
+}
+
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-ink/15 backdrop-blur-[1px]" onClick={onClose} />
+      <div className="relative z-10 flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-hairline bg-surface shadow-2xl shadow-ink/10">
+        <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+          <h2 className="text-sm font-semibold tracking-tight text-ink">{title}</h2>
+          <button onClick={onClose} className="micro hover:text-ink">
+            esc
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-hairline px-5 py-4">{footer}</div>}
+      </div>
     </div>
   );
 }

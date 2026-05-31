@@ -8,6 +8,8 @@ import { env } from "./env";
 import { initDb } from "./db";
 import { createWsHub } from "./realtime/hub";
 import { healthRouter } from "./api/health";
+import { projectsRouter } from "./api/projects";
+import { fsRouter } from "./api/fs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.resolve(here, "../client");
@@ -19,6 +21,8 @@ function main(): void {
   app.use(express.json({ limit: "8mb" }));
 
   app.use("/api", healthRouter);
+  app.use("/api", projectsRouter);
+  app.use("/api", fsRouter);
 
   const indexHtml = path.join(clientDir, "index.html");
   const serveClient = !env.isDev && fs.existsSync(indexHtml);
