@@ -15,6 +15,7 @@ import { tasksRouter } from "./api/tasks";
 import { manglerRouter } from "./api/mangler";
 import { runsRouter } from "./api/runs";
 import { defsRouter } from "./api/defs";
+import { settingsRouter } from "./api/settings";
 import { fsRouter } from "./api/fs";
 import { installPtyTerminals } from "./agents/pty";
 
@@ -35,6 +36,7 @@ function main(): void {
   app.use("/api", manglerRouter);
   app.use("/api", runsRouter);
   app.use("/api", defsRouter);
+  app.use("/api", settingsRouter);
   app.use("/api", fsRouter);
 
   const indexHtml = path.join(clientDir, "index.html");
