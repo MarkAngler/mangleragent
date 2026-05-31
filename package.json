@@ -2,6 +2,15 @@
   "name": "mangled-agents",
   "version": "0.1.0",
   "description": "Orchestrate and manage Claude Code agents across your projects, with Mangler — your primary organizing agent.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "agents",
+    "orchestration",
+    "kanban",
+    "ai",
+    "anthropic"
+  ],
   "type": "module",
   "bin": {
     "mangled-agents": "bin/cli.js",

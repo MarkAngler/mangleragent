@@ -25,7 +25,7 @@ function fileFor(scope: string, kind: DefKind, name: string): string {
   return kind === "skill" ? path.join(dirFor(scope, kind), name, "SKILL.md") : path.join(dirFor(scope, kind), `${name}.md`);
 }
 
-function parseFrontmatter(content: string): Record<string, string> {
+export function parseFrontmatter(content: string): Record<string, string> {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return {};
   const out: Record<string, string> = {};
