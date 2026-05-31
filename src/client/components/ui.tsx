@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 export function Mono({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <span className={`micro ${className}`}>{children}</span>;
@@ -68,6 +68,46 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
       {...props}
       className={`w-full rounded-md border border-hairline-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent ${className}`}
     />
+  );
+}
+
+export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className={`w-full rounded-md border border-hairline-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent ${className}`}
+    />
+  );
+}
+
+export function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-40">
+      <div className="absolute inset-0 bg-ink/10" onClick={onClose} />
+      <div className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-hairline bg-surface shadow-2xl shadow-ink/10">
+        <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+          <div className="min-w-0 text-sm font-semibold tracking-tight text-ink">{title}</div>
+          <button onClick={onClose} className="micro shrink-0 hover:text-ink">
+            close
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        {footer && <div className="border-t border-hairline px-5 py-4">{footer}</div>}
+      </div>
+    </div>
   );
 }
 
