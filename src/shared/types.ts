@@ -108,6 +108,40 @@ export const UpdateTaskInput = z.object({
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInput>;
 
+export const AgentRunKind = z.enum(["pty", "orchestrated"]);
+export type AgentRunKind = z.infer<typeof AgentRunKind>;
+
+export const AgentRunStatus = z.enum(["planning", "awaiting_approval", "running", "done", "failed", "stopped"]);
+export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
+
+export const Approver = z.enum(["human", "agent"]);
+export type Approver = z.infer<typeof Approver>;
+
+export const AgentRun = z.object({
+  id: z.string(),
+  projectId: z.string().nullable(),
+  ticketId: z.string().nullable(),
+  kind: AgentRunKind,
+  title: z.string(),
+  status: AgentRunStatus,
+  approver: Approver,
+  permissionMode: z.string(),
+  model: z.string().nullable(),
+  sdkSessionId: z.string().nullable(),
+  cwd: z.string(),
+  agentDef: z.string().nullable(),
+  summary: z.string().nullable(),
+  createdAt: z.number(),
+  endedAt: z.number().nullable(),
+});
+export type AgentRun = z.infer<typeof AgentRun>;
+
+export const CreatePtyRunInput = z.object({
+  projectId: z.string(),
+  ticketId: z.string().nullable().optional(),
+});
+export type CreatePtyRunInput = z.infer<typeof CreatePtyRunInput>;
+
 export const Conversation = z.object({
   id: z.string(),
   title: z.string(),

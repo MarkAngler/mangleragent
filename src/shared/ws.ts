@@ -7,6 +7,7 @@ import { z } from "zod";
 export const ServerMsg = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hello"), serverTime: z.string() }),
   z.object({ type: z.literal("board.updated"), projectId: z.string() }),
+  z.object({ type: z.literal("run.updated"), runId: z.string() }),
 
   // Mangler streaming chat
   z.object({ type: z.literal("mangler.delta"), conversationId: z.string(), text: z.string() }),

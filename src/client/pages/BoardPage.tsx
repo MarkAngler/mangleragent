@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import { appendPosition, insertPosition } from "../../shared/board";
-import type { Column, Project, Ticket } from "../../shared/types";
-import { Drawer, Input, Mono, PageHeader, Textarea } from "../components/ui";
+import type { AgentRun, Column, Project, Ticket } from "../../shared/types";
+import { Button, Drawer, Input, Mono, PageHeader, Textarea } from "../components/ui";
 
 export function BoardPage() {
   const { id: projectId = "" } = useParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const ticketsKey = ["tickets", projectId];
 
@@ -42,6 +43,11 @@ export function BoardPage() {
     mutationFn: (id: string) => del(`/tickets/${id}`),
     onSuccess: invalidate,
   });
+  const openTerminal = useMutation({
+    mutationFn: (vars: { ticketId?: string }) => post<AgentRun>("/runs/pty", { projectId, ticketId: vars.ticketId ?? null }),
+    onSuccess: (run) => navigate(`/agents?run=${run.id}`),
+  });
+
   const move = useMutation({
     mutationFn: (vars: { id: string; columnId: string; position: number }) =>
       post<Ticket>(`/tickets/${vars.id}/move`, { columnId: vars.columnId, position: vars.position }),
@@ -85,9 +91,12 @@ export function BoardPage() {
         eyebrow={project ? project.path.replace(/^.*\//, "…/") : "project"}
         title={project?.name ?? "Board"}
         actions={
-          <Link to="/projects">
-            <Mono className="hover:text-accent">← all projects</Mono>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/projects">
+              <Mono className="hover:text-accent">← all projects</Mono>
+            </Link>
+            <Button onClick={() => openTerminal.mutate({})}>Open terminal</Button>
+          </div>
         }
       />
 
@@ -189,6 +198,7 @@ export function BoardPage() {
                 position: appendPosition(columnTickets(columnId).filter((t) => t.id !== openTicket.id).map((t) => t.position)),
               })
             }
+            onOpenTerminal={() => openTerminal.mutate({ ticketId: openTicket.id })}
             onDelete={() => {
               remove.mutate(openTicket.id);
               setOpenTicketId(null);
@@ -205,12 +215,14 @@ function TicketEditor({
   columns,
   onSave,
   onMoveColumn,
+  onOpenTerminal,
   onDelete,
 }: {
   ticket: Ticket;
   columns: Column[];
   onSave: (patch: Partial<Pick<Ticket, "title" | "body" | "labels">>) => void;
   onMoveColumn: (columnId: string) => void;
+  onOpenTerminal: () => void;
   onDelete: () => void;
 }) {
   const [title, setTitle] = useState(ticket.title);
@@ -254,6 +266,13 @@ function TicketEditor({
       <div>
         <Mono>labels (comma-separated)</Mono>
         <Input className="mt-1.5 font-mono text-[12px]" value={labels} onChange={(e) => setLabels(e.target.value)} onBlur={commit} placeholder="bug, urgent" />
+      </div>
+
+      <div className="border-t border-hairline pt-4">
+        <Mono>agents</Mono>
+        <div className="mt-2">
+          <Button onClick={onOpenTerminal}>Open terminal in project</Button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between pt-2">

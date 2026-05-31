@@ -13,7 +13,9 @@ import { ticketsRouter } from "./api/tickets";
 import { notesRouter } from "./api/notes";
 import { tasksRouter } from "./api/tasks";
 import { manglerRouter } from "./api/mangler";
+import { runsRouter } from "./api/runs";
 import { fsRouter } from "./api/fs";
+import { installPtyTerminals } from "./agents/pty";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.resolve(here, "../client");
@@ -30,6 +32,7 @@ function main(): void {
   app.use("/api", notesRouter);
   app.use("/api", tasksRouter);
   app.use("/api", manglerRouter);
+  app.use("/api", runsRouter);
   app.use("/api", fsRouter);
 
   const indexHtml = path.join(clientDir, "index.html");
@@ -41,6 +44,7 @@ function main(): void {
 
   const server = createServer(app);
   createWsHub(server);
+  installPtyTerminals();
 
   server.listen(env.port, "127.0.0.1", () => {
     const url = `http://127.0.0.1:${env.port}`;
