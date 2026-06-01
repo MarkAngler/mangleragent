@@ -256,6 +256,15 @@ export type CreateDefInput = z.infer<typeof CreateDefInput>;
 export const SaveDefInput = z.object({ scope: z.string().min(1), kind: DefKind, name: defName, content: z.string() });
 export type SaveDefInput = z.infer<typeof SaveDefInput>;
 
+export const CopyDefInput = z.object({
+  scope: z.string().min(1),
+  kind: DefKind,
+  name: defName,
+  targets: z.array(z.string().min(1)).min(1),
+  overwrite: z.boolean().optional(),
+});
+export type CopyDefInput = z.infer<typeof CopyDefInput>;
+
 export const DirEntry = z.object({
   name: z.string(),
   path: z.string(),

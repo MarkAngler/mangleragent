@@ -64,8 +64,8 @@ export function ActiveAgentsPage() {
       {runs.length === 0 ? (
         <EmptyState title="No agents yet" hint="Open a terminal from a project board, or delegate a ticket to Mangler." />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
-          <div className="flex flex-col gap-1.5">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-rows-1 lg:grid-cols-[300px_1fr]">
+          <div className="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
             {runs.map((run) => (
               <button
                 key={run.id}
