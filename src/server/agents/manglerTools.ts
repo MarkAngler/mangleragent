@@ -45,9 +45,10 @@ const defs: ErasedTool[] = [
   tool({
     name: "list_projects",
     description:
-      "List all projects (id, name, path, kanban columns). Call this first to resolve a project before acting on its tickets.",
+      "List all projects (id, name, path, description, kanban columns). Call this first to resolve a project before acting on its tickets. The description is user-provided context about what the project is.",
     schema: z.object({}),
-    handler: () => projectsRepo.list().map((p) => ({ id: p.id, name: p.name, path: p.path, columns: p.columns })),
+    handler: () =>
+      projectsRepo.list().map((p) => ({ id: p.id, name: p.name, path: p.path, description: p.description, columns: p.columns })),
   }),
   tool({
     name: "list_tickets",

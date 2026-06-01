@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id           TEXT PRIMARY KEY,
   name         TEXT NOT NULL,
   path         TEXT NOT NULL,
+  description  TEXT NOT NULL DEFAULT '',
   columns_json TEXT NOT NULL,
   settings_json TEXT NOT NULL DEFAULT '{}',
   created_at   INTEGER NOT NULL

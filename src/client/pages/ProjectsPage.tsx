@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { del, get, post } from "../lib/api";
+import { del, get, patch, post } from "../lib/api";
 import type { Project } from "../../shared/types";
-import { Button, Card, EmptyState, Modal, Mono, PageHeader } from "../components/ui";
+import { Button, Card, Drawer, EmptyState, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { FolderPicker } from "../components/FolderPicker";
 
 export function ProjectsPage() {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState("");
+  const [description, setDescription] = useState("");
+  const [editing, setEditing] = useState<Project | null>(null);
+  const [descDraft, setDescDraft] = useState("");
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
@@ -17,10 +20,20 @@ export function ProjectsPage() {
   });
 
   const create = useMutation({
-    mutationFn: (path: string) => post<Project>("/projects", { path }),
+    mutationFn: (input: { path: string; description: string }) => post<Project>("/projects", input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["projects"] });
       setAddOpen(false);
+      setDescription("");
+    },
+  });
+
+  const update = useMutation({
+    mutationFn: (input: { id: string; description: string }) =>
+      patch<Project>(`/projects/${input.id}`, { description: input.description }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["projects"] });
+      setEditing(null);
     },
   });
 
@@ -57,16 +70,28 @@ export function ProjectsPage() {
                   </h3>
                   <p className="mt-1 truncate font-mono text-[12px] text-muted">{project.path}</p>
                 </Link>
-                <button
-                  onClick={() => {
-                    if (confirm(`Remove "${project.name}"? This deletes its board and tickets (the folder is untouched).`))
-                      remove.mutate(project.id);
-                  }}
-                  className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  <Mono className="hover:text-bad">remove</Mono>
-                </button>
+                <div className="flex shrink-0 items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    onClick={() => {
+                      setEditing(project);
+                      setDescDraft(project.description);
+                    }}
+                  >
+                    <Mono className="hover:text-accent">edit</Mono>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Remove "${project.name}"? This deletes its board and tickets (the folder is untouched).`))
+                        remove.mutate(project.id);
+                    }}
+                  >
+                    <Mono className="hover:text-bad">remove</Mono>
+                  </button>
+                </div>
               </div>
+              {project.description && (
+                <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-muted">{project.description}</p>
+              )}
               <div className="mt-4 flex items-center gap-4">
                 <Mono>{project.columns.length} columns</Mono>
                 <Link to={`/projects/${project.id}`}>
@@ -89,7 +114,7 @@ export function ProjectsPage() {
             <Button
               variant="solid"
               disabled={!selectedPath || create.isPending}
-              onClick={() => create.mutate(selectedPath)}
+              onClick={() => create.mutate({ path: selectedPath, description })}
             >
               {create.isPending ? "Adding…" : "Add this folder"}
             </Button>
@@ -97,7 +122,46 @@ export function ProjectsPage() {
         }
       >
         <FolderPicker onSelect={setSelectedPath} />
+        <div className="mt-4">
+          <Mono>description (optional)</Mono>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            placeholder="What is this project? Gives Mangler context when it organizes your work."
+            className="mt-2 resize-y text-[13px] leading-relaxed"
+          />
+        </div>
       </Modal>
+
+      <Drawer
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title={<Mono>edit · {editing?.name}</Mono>}
+        footer={
+          <div className="flex justify-end gap-2">
+            {update.isError && <span className="mr-auto self-center text-sm text-bad">{(update.error as Error).message}</span>}
+            <Button onClick={() => setEditing(null)}>Cancel</Button>
+            <Button
+              variant="solid"
+              disabled={update.isPending || descDraft === editing?.description}
+              onClick={() => editing && update.mutate({ id: editing.id, description: descDraft })}
+            >
+              {update.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        }
+      >
+        <Mono>description</Mono>
+        <Textarea
+          value={descDraft}
+          onChange={(e) => setDescDraft(e.target.value)}
+          rows={12}
+          placeholder="What is this project? Stack, purpose, conventions — anything that helps Mangler."
+          className="mt-2 resize-y text-[13px] leading-relaxed"
+        />
+        <p className="mt-2 text-[12px] text-muted">Mangler sees this when it lists your projects.</p>
+      </Drawer>
     </>
   );
 }

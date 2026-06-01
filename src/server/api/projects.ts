@@ -2,7 +2,7 @@ import { Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { projectsRepo } from "../db/projects";
-import { CreateProjectInput } from "../../shared/types";
+import { CreateProjectInput, UpdateProjectInput } from "../../shared/types";
 
 export const projectsRouter = Router();
 
@@ -42,8 +42,22 @@ projectsRouter.post("/projects", (req, res) => {
     res.status(409).json({ error: "a project already points at this folder", project: existing });
     return;
   }
-  const project = projectsRepo.create({ path: abs, name: parsed.data.name });
+  const project = projectsRepo.create({ path: abs, name: parsed.data.name, description: parsed.data.description });
   res.status(201).json(project);
+});
+
+projectsRouter.patch("/projects/:id", (req, res) => {
+  const parsed = UpdateProjectInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "invalid input" });
+    return;
+  }
+  const project = projectsRepo.update(req.params.id, parsed.data);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  res.json(project);
 });
 
 projectsRouter.delete("/projects/:id", (req, res) => {

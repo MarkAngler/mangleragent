@@ -27,6 +27,22 @@ describe("projectsRepo", () => {
     expect(project.name).toBe("Web App");
   });
 
+  it("defaults description to an empty string and stores a provided one", () => {
+    const blank = projectsRepo.create({ path: "/tmp/acme/no-desc" });
+    expect(blank.description).toBe("");
+    const described = projectsRepo.create({ path: "/tmp/acme/billing", description: "Billing service, Node + Postgres" });
+    expect(described.description).toBe("Billing service, Node + Postgres");
+    expect(projectsRepo.get(described.id)?.description).toBe("Billing service, Node + Postgres");
+  });
+
+  it("updates the description and returns undefined for an unknown id", () => {
+    const project = projectsRepo.create({ path: "/tmp/acme/docs" });
+    const updated = projectsRepo.update(project.id, { description: "Public docs site" });
+    expect(updated?.description).toBe("Public docs site");
+    expect(projectsRepo.get(project.id)?.description).toBe("Public docs site");
+    expect(projectsRepo.update("missing-id", { description: "x" })).toBeUndefined();
+  });
+
   it("lists, looks up by path, and removes", () => {
     const before = projectsRepo.list().length;
     const project = projectsRepo.create({ path: "/tmp/acme/worker" });

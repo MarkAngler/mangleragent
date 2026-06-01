@@ -15,6 +15,7 @@ export const Project = z.object({
   id: z.string(),
   name: z.string(),
   path: z.string(),
+  description: z.string(),
   columns: z.array(Column),
   settings: z.record(z.string(), z.unknown()),
   createdAt: z.number(),
@@ -24,8 +25,14 @@ export type Project = z.infer<typeof Project>;
 export const CreateProjectInput = z.object({
   path: z.string().min(1),
   name: z.string().min(1).optional(),
+  description: z.string().optional(),
 });
 export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
+
+export const UpdateProjectInput = z.object({
+  description: z.string(),
+});
+export type UpdateProjectInput = z.infer<typeof UpdateProjectInput>;
 
 export const Ticket = z.object({
   id: z.string(),

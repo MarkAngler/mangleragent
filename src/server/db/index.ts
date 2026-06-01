@@ -10,6 +10,12 @@ export function initDb(): Database.Database {
   database.pragma("journal_mode = WAL");
   database.pragma("foreign_keys = ON");
   database.exec(SCHEMA);
+  // Migrate pre-existing databases: SCHEMA only CREATE TABLE IF NOT EXISTS, so new columns
+  // on an already-created table need an explicit, idempotent ADD COLUMN.
+  const projectCols = database.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
+  if (!projectCols.some((c) => c.name === "description")) {
+    database.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
+  }
   return database;
 }
 
