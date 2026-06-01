@@ -93,6 +93,21 @@ export function saveDef(scope: string, kind: DefKind, name: string, content: str
   return { kind, name, path: file, content };
 }
 
+export function copyDef(fromScope: string, toScope: string, kind: DefKind, name: string, overwrite: boolean): "copied" | "exists" {
+  const src = fileFor(fromScope, kind, name);
+  if (!fs.existsSync(src)) throw new Error("source definition not found");
+  const dest = fileFor(toScope, kind, name);
+  if (fs.existsSync(dest) && !overwrite) return "exists";
+  if (kind === "skill") {
+    fs.rmSync(path.dirname(dest), { recursive: true, force: true });
+    fs.cpSync(path.dirname(src), path.dirname(dest), { recursive: true });
+  } else {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+  }
+  return "copied";
+}
+
 export function removeDef(scope: string, kind: DefKind, name: string): boolean {
   const file = fileFor(scope, kind, name);
   if (!fs.existsSync(file)) return false;

@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, post, put } from "../lib/api";
 import type { DefEntry, DefFile, DefKind, Project } from "../../shared/types";
-import { Button, EmptyState, Mono, PageHeader, Textarea } from "../components/ui";
+import { Button, EmptyState, Modal, Mono, PageHeader, Textarea } from "../components/ui";
+
+type CopyResult = { target: string; status: "copied" | "exists" | "error"; error?: string };
 
 const KINDS: Array<{ id: DefKind; label: string }> = [
   { id: "agent", label: "Agents" },
@@ -15,6 +17,8 @@ export function DefinitionsPage() {
   const [scope, setScope] = useState("global");
   const [kind, setKind] = useState<DefKind>("agent");
   const [selected, setSelected] = useState<string | null>(null);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyTargets, setCopyTargets] = useState<string[]>([]);
 
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => get<Project[]>("/projects") });
   const listKey = ["defs", scope, kind];
@@ -41,6 +45,30 @@ export function DefinitionsPage() {
     onSuccess: () => {
       setSelected(null);
       void qc.invalidateQueries({ queryKey: listKey });
+    },
+  });
+
+  const targetOptions = [
+    ...(scope === "global" ? [] : [{ value: "global", label: "Global" }]),
+    ...projects.filter((p) => p.id !== scope).map((p) => ({ value: p.id, label: p.name })),
+  ];
+  const labelFor = (value: string) => targetOptions.find((t) => t.value === value)?.label ?? value;
+
+  const copy = useMutation({
+    mutationFn: async (name: string) => {
+      const first = await post<{ results: CopyResult[] }>("/defs/copy", { scope, kind, name, targets: copyTargets });
+      const confirmed = first.results
+        .filter((r) => r.status === "exists")
+        .filter((r) => window.confirm(`${labelFor(r.target)} already has "${name}". Overwrite?`))
+        .map((r) => r.target);
+      if (confirmed.length) await post<{ results: CopyResult[] }>("/defs/copy", { scope, kind, name, targets: confirmed, overwrite: true });
+      const failed = first.results.filter((r) => r.status === "error");
+      if (failed.length) window.alert(failed.map((r) => `${labelFor(r.target)}: ${r.error}`).join("\n"));
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["defs"] });
+      setCopyOpen(false);
+      setCopyTargets([]);
     },
   });
 
@@ -120,11 +148,52 @@ export function DefinitionsPage() {
               file={file}
               onSave={(content) => save.mutate({ name: file.name, content })}
               onDelete={() => remove.mutate(file.name)}
+              onCopy={() => {
+                setCopyTargets([]);
+                setCopyOpen(true);
+              }}
               saving={save.isPending}
             />
           )}
         </div>
       </div>
+
+      <Modal
+        open={copyOpen}
+        onClose={() => setCopyOpen(false)}
+        title={`Copy ${kind} to projects`}
+        footer={
+          <>
+            <Button onClick={() => setCopyOpen(false)}>Cancel</Button>
+            <Button
+              variant="solid"
+              disabled={copyTargets.length === 0 || copy.isPending || !selected}
+              onClick={() => selected && copy.mutate(selected)}
+            >
+              {copy.isPending ? "Copying…" : "Copy"}
+            </Button>
+          </>
+        }
+      >
+        {targetOptions.length === 0 ? (
+          <p className="text-sm text-faint">No other projects to copy to.</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {targetOptions.map((t) => (
+              <label key={t.value} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink hover:bg-paper">
+                <input
+                  type="checkbox"
+                  checked={copyTargets.includes(t.value)}
+                  onChange={(e) =>
+                    setCopyTargets((prev) => (e.target.checked ? [...prev, t.value] : prev.filter((v) => v !== t.value)))
+                  }
+                />
+                {t.label}
+              </label>
+            ))}
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
@@ -133,11 +202,13 @@ function DefEditor({
   file,
   onSave,
   onDelete,
+  onCopy,
   saving,
 }: {
   file: DefFile;
   onSave: (content: string) => void;
   onDelete: () => void;
+  onCopy: () => void;
   saving: boolean;
 }) {
   const [content, setContent] = useState(file.content);
@@ -151,6 +222,9 @@ function DefEditor({
           <div className="truncate font-mono text-[11px] text-faint">{file.path}</div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={onCopy}>
+            <Mono className="hover:text-accent">copy to…</Mono>
+          </button>
           <button onClick={onDelete}>
             <Mono className="hover:text-bad">delete</Mono>
           </button>

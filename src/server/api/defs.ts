@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { listDefs, readDef, createDef, saveDef, removeDef } from "../defs";
-import { CreateDefInput, DefKind, SaveDefInput } from "../../shared/types";
+import { listDefs, readDef, createDef, saveDef, copyDef, removeDef } from "../defs";
+import { CopyDefInput, CreateDefInput, DefKind, SaveDefInput } from "../../shared/types";
 
 export const defsRouter = Router();
 
@@ -60,6 +60,23 @@ defsRouter.put("/defs/file", (req, res) => {
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+});
+
+defsRouter.post("/defs/copy", (req, res) => {
+  const parsed = CopyDefInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "invalid input" });
+    return;
+  }
+  const { scope, kind, name, targets, overwrite } = parsed.data;
+  const results = targets.map((target) => {
+    try {
+      return { target, status: copyDef(scope, target, kind, name, overwrite ?? false) };
+    } catch (err) {
+      return { target, status: "error" as const, error: (err as Error).message };
+    }
+  });
+  res.json({ results });
 });
 
 defsRouter.delete("/defs/file", (req, res) => {
