@@ -6,6 +6,7 @@ import { eventsRepo } from "../db/events";
 import { permissionsRepo } from "../db/permissions";
 import { startPtySession, stopPtySession, isPtyAlive } from "../agents/pty";
 import { startOrchestratedRun, stopOrchestratedRun, decideApproval } from "../agents/orchestrator";
+import { runDiff } from "../git";
 import { broadcast } from "../realtime/hub";
 import { CreateOrchestratedRunInput, CreatePtyRunInput, DecideInput } from "../../shared/types";
 
@@ -95,6 +96,15 @@ runsRouter.get("/runs/:id/events", (req, res) => {
 
 runsRouter.get("/runs/:id/permissions", (req, res) => {
   res.json(permissionsRepo.listByRun(req.params.id));
+});
+
+runsRouter.get("/runs/:id/diff", (req, res) => {
+  const run = runsRepo.get(req.params.id);
+  if (!run) {
+    res.status(404).json({ error: "run not found" });
+    return;
+  }
+  res.json(runDiff(run.cwd));
 });
 
 runsRouter.post("/permissions/:id/decide", (req, res) => {

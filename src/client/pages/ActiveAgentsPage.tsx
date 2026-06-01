@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, post } from "../lib/api";
@@ -6,6 +7,9 @@ import type { AgentRun, AgentRunStatus, Project } from "../../shared/types";
 import { Button, EmptyState, Mono, PageHeader, StatusDot } from "../components/ui";
 import { Terminal } from "../components/Terminal";
 import { OrchestratedRunView } from "../components/OrchestratedRunView";
+import { DiffViewer } from "../components/DiffViewer";
+
+type DetailTab = "activity" | "changes";
 
 const STATUS_TONE: Record<AgentRunStatus, "idle" | "good" | "warn" | "bad" | "accent"> = {
   planning: "accent",
@@ -22,6 +26,13 @@ export function ActiveAgentsPage() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const selectedId = params.get("run");
+  const [tab, setTab] = useState<DetailTab>("activity");
+  const [tabRunId, setTabRunId] = useState(selectedId);
+  // Reset to the Activity tab whenever the selected run changes (render-time state adjustment).
+  if (selectedId !== tabRunId) {
+    setTabRunId(selectedId);
+    setTab("activity");
+  }
 
   const { data: runs = [] } = useQuery({ queryKey: ["runs"], queryFn: () => get<AgentRun[]>("/runs") });
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => get<Project[]>("/projects") });
@@ -90,6 +101,19 @@ export function ActiveAgentsPage() {
                     <Mono>{selected.status}</Mono>
                   </div>
                   <div className="flex items-center gap-2">
+                    <div className="flex items-center rounded-md border border-hairline-strong bg-surface p-0.5 text-[12px]">
+                      {(["activity", "changes"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setTab(t)}
+                          className={`rounded px-2.5 py-1 font-medium capitalize transition-colors ${
+                            tab === t ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
                     {isActive(selected) && (
                       <Button onClick={() => stop.mutate(selected.id)}>Stop</Button>
                     )}
@@ -99,11 +123,14 @@ export function ActiveAgentsPage() {
                   </div>
                 </div>
                 <div className="min-h-0 flex-1">
-                  {selected.kind === "pty" ? (
-                    <Terminal key={selected.id} runId={selected.id} />
-                  ) : (
-                    <OrchestratedRunView key={selected.id} run={selected} />
-                  )}
+                  <div className={tab === "changes" ? "hidden" : "h-full"}>
+                    {selected.kind === "pty" ? (
+                      <Terminal key={selected.id} runId={selected.id} />
+                    ) : (
+                      <OrchestratedRunView key={selected.id} run={selected} />
+                    )}
+                  </div>
+                  {tab === "changes" && <DiffViewer key={selected.id} run={selected} />}
                 </div>
               </div>
             )}

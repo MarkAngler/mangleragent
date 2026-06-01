@@ -168,6 +168,27 @@ export const AgentEvent = z.object({
 });
 export type AgentEvent = z.infer<typeof AgentEvent>;
 
+export const DiffFileStatus = z.enum(["added", "modified", "deleted", "renamed"]);
+export type DiffFileStatus = z.infer<typeof DiffFileStatus>;
+
+export const FileDiff = z.object({
+  path: z.string(),
+  oldPath: z.string().nullable(),
+  status: DiffFileStatus,
+  additions: z.number(),
+  deletions: z.number(),
+  binary: z.boolean(),
+  patch: z.string(),
+});
+export type FileDiff = z.infer<typeof FileDiff>;
+
+export const RunDiff = z.object({
+  available: z.boolean(),
+  truncated: z.boolean(),
+  files: z.array(FileDiff),
+});
+export type RunDiff = z.infer<typeof RunDiff>;
+
 export const PermissionRequest = z.object({
   id: z.string(),
   runId: z.string(),

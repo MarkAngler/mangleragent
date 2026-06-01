@@ -1,8 +1,11 @@
 import { Router } from "express";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { projectsRepo } from "../db/projects";
 import { CreateProjectInput, UpdateProjectInput } from "../../shared/types";
+
+const CODE_BIN = process.env.MANGLED_CODE_BIN ?? "code";
 
 export const projectsRouter = Router();
 
@@ -17,6 +20,22 @@ projectsRouter.get("/projects/:id", (req, res) => {
     return;
   }
   res.json(project);
+});
+
+projectsRouter.post("/projects/:id/open", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  execFile(CODE_BIN, [project.path], (err) => {
+    if (err) {
+      console.error(`failed to open ${project.path} in VS Code:`, err.message);
+      res.status(500).json({ error: "could not launch VS Code — is the 'code' command installed and on PATH?" });
+      return;
+    }
+    res.json({ ok: true });
+  });
 });
 
 projectsRouter.post("/projects", (req, res) => {

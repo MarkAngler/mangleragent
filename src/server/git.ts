@@ -1,0 +1,178 @@
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { env } from "./env";
+import type { DiffFileStatus, FileDiff, RunDiff } from "../shared/types";
+
+const IDX_DIR = path.join(env.dataDir, "diff-idx");
+const GIT_TIMEOUT = 15_000;
+const MAX_BUFFER = 64 * 1024 * 1024;
+const MAX_PATCH_BYTES = 2 * 1024 * 1024;
+// git's well-known empty tree object, used as the diff base for a repo with no commits.
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+function git(cwd: string, args: string[], indexFile?: string): string {
+  return execFileSync("git", ["-C", cwd, ...args], {
+    encoding: "utf8",
+    timeout: GIT_TIMEOUT,
+    maxBuffer: MAX_BUFFER,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: indexFile ? { ...process.env, GIT_INDEX_FILE: indexFile } : process.env,
+  });
+}
+
+export function isGitRepo(cwd: string): boolean {
+  try {
+    return git(cwd, ["rev-parse", "--is-inside-work-tree"]).trim() === "true";
+  } catch {
+    return false;
+  }
+}
+
+function headExists(cwd: string): boolean {
+  try {
+    git(cwd, ["rev-parse", "--verify", "--quiet", "HEAD"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Snapshot the current working tree to a git tree object without touching the
+ * user's real index. Seeds a throwaway index from HEAD (so tracked-but-ignored
+ * files survive), then `add -A` to match the working tree (incl. untracked,
+ * respecting .gitignore). Returns null if cwd is missing / not a repo / git fails.
+ * The temp index lives outside the repo so `add -A` never sweeps it into the tree.
+ */
+export function snapshotTree(cwd: string): string | null {
+  if (!fs.existsSync(cwd) || !isGitRepo(cwd)) return null;
+  fs.mkdirSync(IDX_DIR, { recursive: true });
+  const idx = path.join(IDX_DIR, `${randomUUID()}.idx`);
+  try {
+    try {
+      git(cwd, ["read-tree", "HEAD"], idx);
+    } catch {
+      // Repo with no commits: there is no HEAD to seed from. add -A still works.
+    }
+    git(cwd, ["add", "-A"], idx);
+    return git(cwd, ["write-tree"], idx).trim();
+  } catch {
+    return null;
+  } finally {
+    fs.rmSync(idx, { force: true });
+    fs.rmSync(`${idx}.lock`, { force: true });
+  }
+}
+
+function stripPath(raw: string): string | null {
+  if (raw === "/dev/null") return null;
+  return raw.startsWith("a/") || raw.startsWith("b/") ? raw.slice(2) : raw;
+}
+
+function parseSection(sec: string[]): FileDiff | null {
+  const header = /^diff --git a\/(.*) b\/(.*)$/.exec(sec[0]);
+  const diffA = header?.[1] ?? null;
+  const diffB = header?.[2] ?? null;
+
+  let renameFrom: string | null = null;
+  let renameTo: string | null = null;
+  let minusPath: string | null = null;
+  let plusPath: string | null = null;
+  let isNew = false;
+  let isDeleted = false;
+  let isBinary = false;
+  let additions = 0;
+  let deletions = 0;
+  let inHunk = false;
+
+  for (let i = 1; i < sec.length; i++) {
+    const line = sec[i];
+    if (line.startsWith("@@")) {
+      inHunk = true;
+      continue;
+    }
+    if (inHunk) {
+      if (line.startsWith("+")) additions++;
+      else if (line.startsWith("-")) deletions++;
+      continue;
+    }
+    if (line.startsWith("new file mode")) isNew = true;
+    else if (line.startsWith("deleted file mode")) isDeleted = true;
+    else if (line.startsWith("rename from ")) renameFrom = line.slice(12);
+    else if (line.startsWith("rename to ")) renameTo = line.slice(10);
+    else if (line.startsWith("--- ")) minusPath = stripPath(line.slice(4));
+    else if (line.startsWith("+++ ")) plusPath = stripPath(line.slice(4));
+    else if (line.startsWith("Binary files ") || line.startsWith("GIT binary patch")) isBinary = true;
+  }
+
+  const filePath = plusPath ?? renameTo ?? diffB ?? minusPath ?? renameFrom ?? diffA;
+  if (!filePath) return null;
+  const status: DiffFileStatus = isNew
+    ? "added"
+    : isDeleted
+      ? "deleted"
+      : renameTo || renameFrom
+        ? "renamed"
+        : "modified";
+  return {
+    path: filePath,
+    oldPath: status === "renamed" ? (renameFrom ?? minusPath ?? diffA) : null,
+    status,
+    additions: isBinary ? 0 : additions,
+    deletions: isBinary ? 0 : deletions,
+    binary: isBinary,
+    patch: isBinary ? "" : sec.join("\n"),
+  };
+}
+
+function parseUnifiedDiff(raw: string): FileDiff[] {
+  const files: FileDiff[] = [];
+  let section: string[] | null = null;
+  const flush = () => {
+    if (!section) return;
+    const file = parseSection(section);
+    if (file) files.push(file);
+    section = null;
+  };
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      flush();
+      section = [line];
+    } else if (section) {
+      section.push(line);
+    }
+  }
+  flush();
+  return files;
+}
+
+function diffTrees(cwd: string, base: string, now: string): { files: FileDiff[]; truncated: boolean } {
+  let raw = git(cwd, ["-c", "core.quotePath=false", "diff", "--no-color", base, now]);
+  let truncated = false;
+  if (Buffer.byteLength(raw, "utf8") > MAX_PATCH_BYTES) {
+    raw = raw.slice(0, MAX_PATCH_BYTES);
+    truncated = true;
+  }
+  return { files: parseUnifiedDiff(raw), truncated };
+}
+
+/**
+ * The uncommitted changes in `cwd` — tracked edits and new untracked files
+ * (excluding .gitignore'd files) — diffed against the last commit. Read-only:
+ * never mutates the repo or the user's index. Degrades to { available:false }
+ * for non-git directories, missing paths, or any git failure.
+ */
+export function runDiff(cwd: string): RunDiff {
+  const unavailable: RunDiff = { available: false, truncated: false, files: [] };
+  try {
+    const now = snapshotTree(cwd);
+    if (!now) return unavailable;
+    const base = headExists(cwd) ? "HEAD" : EMPTY_TREE;
+    const { files, truncated } = diffTrees(cwd, base, now);
+    return { available: true, truncated, files };
+  } catch {
+    return unavailable;
+  }
+}
