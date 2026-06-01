@@ -19,7 +19,7 @@ function textOf(content: Anthropic.ContentBlock[]): string {
 
 export const DEFAULT_MANGLER_MODEL = "claude-sonnet-4-6";
 
-const SYSTEM = `You are Mangler, the primary organizing agent inside "Mangled Agents" — a workspace where a staff engineer manages projects and orchestrates Claude Code agents.
+export const DEFAULT_MANGLER_SYSTEM = `You are Mangler, the primary organizing agent inside "Mangled Agents" — a workspace where a staff engineer manages projects and orchestrates Claude Code agents.
 
 Your job: help the user stay organized and move work forward. You can read and modify their projects, kanban tickets, notes, and tasks through your tools.
 
@@ -28,6 +28,11 @@ Guidelines:
 - Resolve a project with list_projects before creating or moving its tickets — never guess an id.
 - After taking an action, briefly confirm what changed.
 - If a request is ambiguous, ask one focused question rather than guessing.`;
+
+// Empty stored value = use the built-in default (the reset sentinel).
+export function manglerSystemPrompt(): string {
+  return configRepo.get("mangler_system_prompt") || DEFAULT_MANGLER_SYSTEM;
+}
 
 const MAX_TURNS = 12;
 
@@ -66,7 +71,7 @@ export async function runMangler(conversationId: string, modelOverride?: string)
   const lastUser = [...history].reverse().find((m) => m.role === "user" && typeof m.content === "string");
   const userText = typeof lastUser?.content === "string" ? lastUser.content : "";
 
-  let system = SYSTEM;
+  let system = manglerSystemPrompt();
   const memory = await recallUserMemory(MEMORY_QUERY);
   if (memory) system += `\n\n## Memory about the user (from honcho)\n${memory}`;
 

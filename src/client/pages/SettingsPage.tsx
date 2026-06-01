@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, patch } from "../lib/api";
-import { Button, Card, Input, Mono, PageHeader, StatusDot } from "../components/ui";
+import { Button, Card, Input, Mono, PageHeader, StatusDot, Textarea } from "../components/ui";
 
 interface Settings {
   anthropicConfigured: boolean;
   honchoConfigured: boolean;
   honchoEnabled: boolean;
+  honchoWorkspace: string;
   model: string;
+  systemPrompt: string;
+  defaultSystemPrompt: string;
 }
 
 export function SettingsPage() {
@@ -15,16 +18,22 @@ export function SettingsPage() {
   const { data } = useQuery({ queryKey: ["settings"], queryFn: () => get<Settings>("/settings") });
 
   const update = useMutation({
-    mutationFn: (patchBody: Partial<Pick<Settings, "honchoEnabled" | "model">>) => patch("/settings", patchBody),
+    mutationFn: (patchBody: Partial<Pick<Settings, "honchoEnabled" | "honchoWorkspace" | "model" | "systemPrompt">>) => patch("/settings", patchBody),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["settings"] }),
   });
 
   const [model, setModel] = useState<string | null>(null);
   const modelValue = model ?? data?.model ?? "";
 
+  const [workspace, setWorkspace] = useState<string | null>(null);
+  const workspaceValue = workspace ?? data?.honchoWorkspace ?? "";
+
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const promptValue = prompt ?? data?.systemPrompt ?? "";
+
   return (
     <>
-      <PageHeader eyebrow="Configure" title="Settings" description="API keys, the Mangler model, and the optional honcho.dev memory integration." />
+      <PageHeader eyebrow="Configure" title="Settings" description="API keys, the Mangler model and system prompt, and the optional honcho.dev memory integration." />
 
       <div className="flex max-w-xl flex-col gap-4">
         <Card className="p-5">
@@ -51,6 +60,35 @@ export function SettingsPage() {
         </Card>
 
         <Card className="p-5">
+          <Mono>mangler system prompt</Mono>
+          <Textarea
+            value={promptValue}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={12}
+            className="mt-3 resize-y font-mono text-[13px] leading-relaxed"
+          />
+          <div className="mt-3 flex gap-2">
+            <Button
+              variant="solid"
+              disabled={prompt === null || prompt === data?.systemPrompt || update.isPending}
+              onClick={() => update.mutate({ systemPrompt: promptValue })}
+            >
+              Save
+            </Button>
+            <Button
+              disabled={data?.systemPrompt === data?.defaultSystemPrompt || update.isPending}
+              onClick={() => {
+                update.mutate({ systemPrompt: "" });
+                setPrompt(null);
+              }}
+            >
+              Reset to default
+            </Button>
+          </div>
+          <p className="mt-2 text-[12px] text-muted">Defines Mangler's persona and operating rules. Reset restores the built-in default.</p>
+        </Card>
+
+        <Card className="p-5">
           <div className="flex items-center justify-between">
             <div>
               <Mono>honcho.dev memory</Mono>
@@ -73,6 +111,20 @@ export function SettingsPage() {
               <StatusDot tone="warn" /> Set HONCHO_DEV_API_KEY to enable this.
             </p>
           )}
+          <div className="mt-4">
+            <Mono>workspace</Mono>
+            <div className="mt-2 flex gap-2">
+              <Input value={workspaceValue} onChange={(e) => setWorkspace(e.target.value)} className="font-mono text-[13px]" />
+              <Button
+                variant="solid"
+                disabled={!workspace || workspace === data?.honchoWorkspace || update.isPending}
+                onClick={() => workspace && update.mutate({ honchoWorkspace: workspace })}
+              >
+                Save
+              </Button>
+            </div>
+            <p className="mt-2 text-[12px] text-muted">defaults to mangled-agents</p>
+          </div>
         </Card>
       </div>
     </>

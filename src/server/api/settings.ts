@@ -2,8 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { configRepo } from "../db/config";
 import { env } from "../env";
-import { honchoConfigured } from "../honcho";
-import { DEFAULT_MANGLER_MODEL } from "../agents/mangler";
+import { honchoConfigured, honchoWorkspace } from "../honcho";
+import { DEFAULT_MANGLER_MODEL, DEFAULT_MANGLER_SYSTEM, manglerSystemPrompt } from "../agents/mangler";
 
 export const settingsRouter = Router();
 
@@ -12,11 +12,19 @@ settingsRouter.get("/settings", (_req, res) => {
     anthropicConfigured: Boolean(env.anthropicApiKey),
     honchoConfigured: honchoConfigured(),
     honchoEnabled: configRepo.getBool("honcho_enabled", false),
+    honchoWorkspace: honchoWorkspace(),
     model: configRepo.get("mangler_model") ?? DEFAULT_MANGLER_MODEL,
+    systemPrompt: manglerSystemPrompt(),
+    defaultSystemPrompt: DEFAULT_MANGLER_SYSTEM,
   });
 });
 
-const PatchInput = z.object({ honchoEnabled: z.boolean().optional(), model: z.string().min(1).optional() });
+const PatchInput = z.object({
+  honchoEnabled: z.boolean().optional(),
+  honchoWorkspace: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  systemPrompt: z.string().max(20000).optional(),
+});
 
 settingsRouter.patch("/settings", (req, res) => {
   const parsed = PatchInput.safeParse(req.body);
@@ -25,6 +33,8 @@ settingsRouter.patch("/settings", (req, res) => {
     return;
   }
   if (parsed.data.honchoEnabled !== undefined) configRepo.set("honcho_enabled", String(parsed.data.honchoEnabled));
+  if (parsed.data.honchoWorkspace) configRepo.set("honcho_workspace", parsed.data.honchoWorkspace);
   if (parsed.data.model) configRepo.set("mangler_model", parsed.data.model);
+  if (parsed.data.systemPrompt !== undefined) configRepo.set("mangler_system_prompt", parsed.data.systemPrompt);
   res.json({ ok: true });
 });

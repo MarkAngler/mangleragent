@@ -2,13 +2,13 @@ import { Honcho } from "@honcho-ai/sdk";
 import { env } from "./env";
 import { configRepo } from "./db/config";
 
-// Optional honcho.dev memory. Workspace is overridable so tests can target a
-// throwaway workspace without touching the product default.
-const WORKSPACE = process.env.MANGLED_HONCHO_WORKSPACE ?? "mangled-agents";
+// Optional honcho.dev memory. Workspace is set in Settings, overridable via env
+// so tests can target a throwaway workspace without touching the product default.
 const USER_PEER = "user";
 const MANGLER_PEER = "mangler";
 
 let client: Honcho | null = null;
+let clientWorkspace: string | null = null;
 
 export function honchoConfigured(): boolean {
   return Boolean(env.honchoApiKey);
@@ -18,8 +18,16 @@ export function honchoEnabled(): boolean {
   return honchoConfigured() && configRepo.getBool("honcho_enabled", false);
 }
 
+export function honchoWorkspace(): string {
+  return configRepo.get("honcho_workspace") ?? process.env.MANGLED_HONCHO_WORKSPACE ?? "mangled-agents";
+}
+
 function getClient(): Honcho {
-  if (!client) client = new Honcho({ apiKey: env.honchoApiKey, workspaceId: WORKSPACE, environment: "production" });
+  const workspace = honchoWorkspace();
+  if (!client || clientWorkspace !== workspace) {
+    client = new Honcho({ apiKey: env.honchoApiKey, workspaceId: workspace, environment: "production" });
+    clientWorkspace = workspace;
+  }
   return client;
 }
 
