@@ -48,7 +48,7 @@ export function NotesPage() {
   const openNote = notes.find((n) => n.id === openNoteId) ?? null;
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         eyebrow="Organize"
         title="Notes & Tasks"
@@ -148,7 +148,7 @@ export function NotesPage() {
           />
         )}
       </Drawer>
-    </>
+    </div>
   );
 }
 

@@ -111,7 +111,7 @@ export function ManglerPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <header className="mb-6 flex items-end justify-between gap-6 border-b border-hairline pb-5">
         <div>
           <div className="flex items-center gap-2">
@@ -148,7 +148,7 @@ export function ManglerPage() {
         </div>
       </header>
 
-      <div className="flex-1 space-y-4">
+      <div className="mx-auto w-full max-w-3xl flex-1 space-y-4">
         {messages.length === 0 && !running && (
           <div className="py-16 text-center">
             <p className="text-sm text-muted">Ask Mangler to organize your work.</p>
@@ -182,7 +182,7 @@ export function ManglerPage() {
       </div>
 
       <div className="sticky bottom-0 -mx-10 mt-4 border-t border-hairline bg-paper/95 px-10 pb-3 pt-3 backdrop-blur">
-        <div className="flex items-end gap-2">
+        <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
