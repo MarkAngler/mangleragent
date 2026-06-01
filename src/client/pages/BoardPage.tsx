@@ -47,6 +47,10 @@ export function BoardPage() {
     mutationFn: (vars: { ticketId?: string }) => post<AgentRun>("/runs/pty", { projectId, ticketId: vars.ticketId ?? null }),
     onSuccess: (run) => navigate(`/agents?run=${run.id}`),
   });
+  const openVscode = useMutation({
+    mutationFn: () => post(`/projects/${projectId}/open`),
+    onError: (err) => alert((err as Error).message),
+  });
   const delegate = useMutation({
     mutationFn: (vars: { ticketId: string; approver: "human" | "agent" }) =>
       post<AgentRun>("/runs/orchestrated", { projectId, ticketId: vars.ticketId, approver: vars.approver }),
@@ -100,6 +104,7 @@ export function BoardPage() {
             <Link to="/projects">
               <Mono className="hover:text-accent">← all projects</Mono>
             </Link>
+            <Button onClick={() => openVscode.mutate()} disabled={openVscode.isPending}>Open in VS Code</Button>
             <Button onClick={() => openTerminal.mutate({})}>Open terminal</Button>
           </div>
         }

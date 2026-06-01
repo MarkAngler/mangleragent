@@ -42,6 +42,11 @@ export function ProjectsPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["projects"] }),
   });
 
+  const openVscode = useMutation({
+    mutationFn: (id: string) => post(`/projects/${id}/open`),
+    onError: (err) => alert((err as Error).message),
+  });
+
   return (
     <>
       <PageHeader
@@ -71,6 +76,9 @@ export function ProjectsPage() {
                   <p className="mt-1 truncate font-mono text-[12px] text-muted">{project.path}</p>
                 </Link>
                 <div className="flex shrink-0 items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button onClick={() => openVscode.mutate(project.id)} disabled={openVscode.isPending}>
+                    <Mono className="hover:text-accent">vscode</Mono>
+                  </button>
                   <button
                     onClick={() => {
                       setEditing(project);
