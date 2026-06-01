@@ -58,13 +58,13 @@ export function ActiveAgentsPage() {
   const isActive = (r: AgentRun) => !TERMINAL_STATUSES.includes(r.status);
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader eyebrow="Orchestration" title="Active Agents" description="Every interactive terminal session and orchestrated agent run, live." />
 
       {runs.length === 0 ? (
         <EmptyState title="No agents yet" hint="Open a terminal from a project board, or delegate a ticket to Mangler." />
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
           <div className="flex flex-col gap-1.5">
             {runs.map((run) => (
               <button
@@ -89,11 +89,11 @@ export function ActiveAgentsPage() {
 
           <div className="min-w-0">
             {!selected ? (
-              <div className="grid h-[60vh] place-items-center rounded-lg border border-dashed border-hairline-strong text-sm text-faint">
+              <div className="grid h-full min-h-0 place-items-center rounded-lg border border-dashed border-hairline-strong text-sm text-faint">
                 Select an agent to view it.
               </div>
             ) : (
-              <div className="flex h-[72vh] flex-col">
+              <div className="flex h-full min-h-0 flex-col">
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <StatusDot tone={STATUS_TONE[selected.status]} pulse={isActive(selected)} />
@@ -137,6 +137,6 @@ export function ActiveAgentsPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

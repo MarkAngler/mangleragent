@@ -48,7 +48,7 @@ export function ProjectsPage() {
   });
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         eyebrow="Workspace"
         title="Projects"
@@ -170,6 +170,6 @@ export function ProjectsPage() {
         />
         <p className="mt-2 text-[12px] text-muted">Mangler sees this when it lists your projects.</p>
       </Drawer>
-    </>
+    </div>
   );
 }

@@ -96,102 +96,104 @@ export function BoardPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow={project ? project.path.replace(/^.*\//, "…/") : "project"}
-        title={project?.name ?? "Board"}
-        actions={
-          <div className="flex items-center gap-3">
-            <Link to="/projects">
-              <Mono className="hover:text-accent">← all projects</Mono>
-            </Link>
-            <Button onClick={() => openVscode.mutate()} disabled={openVscode.isPending}>Open in VS Code</Button>
-            <Button onClick={() => openTerminal.mutate({})}>Open terminal</Button>
-          </div>
-        }
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <PageHeader
+          eyebrow={project ? project.path.replace(/^.*\//, "…/") : "project"}
+          title={project?.name ?? "Board"}
+          actions={
+            <div className="flex items-center gap-3">
+              <Link to="/projects">
+                <Mono className="hover:text-accent">← all projects</Mono>
+              </Link>
+              <Button onClick={() => openVscode.mutate()} disabled={openVscode.isPending}>Open in VS Code</Button>
+              <Button onClick={() => openTerminal.mutate({})}>Open terminal</Button>
+            </div>
+          }
+        />
 
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {(project?.columns ?? []).map((column: Column) => {
-          const items = columnTickets(column.id);
-          return (
-            <section
-              key={column.id}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => drop(column.id, null)}
-              className="flex w-72 shrink-0 flex-col rounded-lg border border-hairline bg-paper"
-            >
-              <div className="flex items-center justify-between px-3 py-2.5">
-                <span className="text-sm font-medium text-ink">{column.name}</span>
-                <Mono>{items.length}</Mono>
-              </div>
+        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4">
+          {(project?.columns ?? []).map((column: Column) => {
+            const items = columnTickets(column.id);
+            return (
+              <section
+                key={column.id}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => drop(column.id, null)}
+                className="flex min-h-0 min-w-[15rem] flex-1 flex-col rounded-lg border border-hairline bg-paper"
+              >
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <span className="text-sm font-medium text-ink">{column.name}</span>
+                  <Mono>{items.length}</Mono>
+                </div>
 
-              <div className="flex min-h-2 flex-1 flex-col gap-2 px-2 pb-2">
-                {items.map((ticket) => (
-                  <article
-                    key={ticket.id}
-                    draggable
-                    onDragStart={() => setDraggingId(ticket.id)}
-                    onDragEnd={() => setDraggingId(null)}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.stopPropagation();
-                      drop(column.id, ticket.id);
-                    }}
-                    onClick={() => setOpenTicketId(ticket.id)}
-                    className={`cursor-pointer rounded-md border border-hairline bg-surface p-3 shadow-sm transition-shadow hover:shadow-md ${
-                      draggingId === ticket.id ? "opacity-40" : ""
-                    }`}
-                  >
-                    <p className="text-sm leading-snug text-ink">{ticket.title}</p>
-                    {ticket.labels.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {ticket.labels.map((label) => (
-                          <span key={label} className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] text-accent">
-                            {label}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </article>
-                ))}
-
-                {addingColumn === column.id ? (
-                  <Textarea
-                    autoFocus
-                    rows={2}
-                    value={addTitle}
-                    onChange={(e) => setAddTitle(e.target.value)}
-                    onBlur={() => submitAdd(column.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
+                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
+                  {items.map((ticket) => (
+                    <article
+                      key={ticket.id}
+                      draggable
+                      onDragStart={() => setDraggingId(ticket.id)}
+                      onDragEnd={() => setDraggingId(null)}
+                      onDragOver={(e) => {
                         e.preventDefault();
-                        submitAdd(column.id);
-                      }
-                      if (e.key === "Escape") {
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.stopPropagation();
+                        drop(column.id, ticket.id);
+                      }}
+                      onClick={() => setOpenTicketId(ticket.id)}
+                      className={`cursor-pointer rounded-md border border-hairline bg-surface p-3 shadow-sm transition-shadow hover:shadow-md ${
+                        draggingId === ticket.id ? "opacity-40" : ""
+                      }`}
+                    >
+                      <p className="text-sm leading-snug text-ink">{ticket.title}</p>
+                      {ticket.labels.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {ticket.labels.map((label) => (
+                            <span key={label} className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] text-accent">
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  ))}
+
+                  {addingColumn === column.id ? (
+                    <Textarea
+                      autoFocus
+                      rows={2}
+                      value={addTitle}
+                      onChange={(e) => setAddTitle(e.target.value)}
+                      onBlur={() => submitAdd(column.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          submitAdd(column.id);
+                        }
+                        if (e.key === "Escape") {
+                          setAddTitle("");
+                          setAddingColumn(null);
+                        }
+                      }}
+                      placeholder="Ticket title…"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setAddingColumn(column.id);
                         setAddTitle("");
-                        setAddingColumn(null);
-                      }
-                    }}
-                    placeholder="Ticket title…"
-                  />
-                ) : (
-                  <button
-                    onClick={() => {
-                      setAddingColumn(column.id);
-                      setAddTitle("");
-                    }}
-                    className="rounded-md px-2 py-1.5 text-left text-sm text-faint hover:bg-surface hover:text-muted"
-                  >
-                    + New
-                  </button>
-                )}
-              </div>
-            </section>
-          );
-        })}
+                      }}
+                      className="rounded-md px-2 py-1.5 text-left text-sm text-faint hover:bg-surface hover:text-muted"
+                    >
+                      + New
+                    </button>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
       </div>
 
       <Drawer open={Boolean(openTicket)} onClose={() => setOpenTicketId(null)} title={<Mono>ticket</Mono>}>
