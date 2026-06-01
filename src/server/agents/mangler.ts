@@ -4,13 +4,14 @@ import { messagesRepo } from "../db/chat";
 import { configRepo } from "../db/config";
 import { broadcast } from "../realtime/hub";
 import { recallUserMemory, recordTurn } from "../honcho";
-import { getAnthropic } from "./anthropic";
+import { databricksConfigured } from "../databricks";
+import { streamChat, type Provider } from "./chat";
 import { anthropicTools, runTool } from "./manglerTools";
 
 const MEMORY_QUERY =
   "Summarize what you know about this user that helps you assist them: their projects, preferences, working style, and ongoing priorities. Be concise.";
 
-function textOf(content: Anthropic.ContentBlock[]): string {
+function textOf(content: Anthropic.ContentBlockParam[]): string {
   return content
     .filter((b) => b.type === "text")
     .map((b) => (b.type === "text" ? b.text : ""))
@@ -56,7 +57,12 @@ function summarize(name: string, output: unknown): string | undefined {
 }
 
 export async function runMangler(conversationId: string, modelOverride?: string): Promise<void> {
-  if (!env.anthropicApiKey) {
+  const provider = (configRepo.get("mangler_provider") as Provider) ?? "anthropic";
+  if (provider === "databricks" && !databricksConfigured()) {
+    broadcast({ type: "mangler.error", conversationId, error: "Databricks is not configured (set the host in Settings and run `databricks auth login`)." });
+    return;
+  }
+  if (provider === "anthropic" && !env.anthropicApiKey) {
     broadcast({ type: "mangler.error", conversationId, error: "No Claude API key configured (set CLAUDE_API_KEY)." });
     return;
   }
@@ -79,21 +85,19 @@ export async function runMangler(conversationId: string, modelOverride?: string)
 
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const stream = getAnthropic().messages.stream({
+      const final = await streamChat({
+        provider,
         model,
-        max_tokens: 4096,
         system,
         tools: anthropicTools,
         messages,
+        onText: (text) => broadcast({ type: "mangler.delta", conversationId, text }),
       });
-      stream.on("text", (text) => broadcast({ type: "mangler.delta", conversationId, text }));
-
-      const final = await stream.finalMessage();
       messagesRepo.add(conversationId, "assistant", final.content);
       messages.push({ role: "assistant", content: final.content });
       assistantText += textOf(final.content);
 
-      if (final.stop_reason !== "tool_use") break;
+      if (final.stopReason !== "tool_use") break;
 
       const results: Anthropic.ToolResultBlockParam[] = [];
       for (const block of final.content) {
