@@ -14,12 +14,12 @@ export interface ManglerCompletion {
 
 let client: OpenAI | null = null;
 
-// The workspace host may be configured with or without a scheme; the gateway lives
-// under the OpenAI-compatible /ai-gateway/mlflow/v1 path.
+// The workspace host may be configured with or without a scheme; the OpenAI-compatible
+// API lives under the /serving-endpoints path.
 export function gatewayBaseUrl(host: string): string {
   const trimmed = host.trim().replace(/\/+$/, "");
   const withScheme = /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return `${withScheme}/ai-gateway/mlflow/v1`;
+  return `${withScheme}/serving-endpoints`;
 }
 
 function getClient(): OpenAI {

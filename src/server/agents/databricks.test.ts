@@ -19,11 +19,11 @@ function chunk(delta: ChatChunk["choices"][number]["delta"]): ChatChunk {
 
 describe("gatewayBaseUrl", () => {
   it("adds https when the host has no scheme and appends the gateway path", () => {
-    expect(gatewayBaseUrl("dbc-e139bf31-ef34.cloud.databricks.com")).toBe("https://dbc-e139bf31-ef34.cloud.databricks.com/ai-gateway/mlflow/v1");
+    expect(gatewayBaseUrl("dbc-e139bf31-ef34.cloud.databricks.com")).toBe("https://dbc-e139bf31-ef34.cloud.databricks.com/serving-endpoints");
   });
 
   it("preserves an explicit scheme and strips trailing slashes", () => {
-    expect(gatewayBaseUrl("https://example.cloud.databricks.com/")).toBe("https://example.cloud.databricks.com/ai-gateway/mlflow/v1");
+    expect(gatewayBaseUrl("https://example.cloud.databricks.com/")).toBe("https://example.cloud.databricks.com/serving-endpoints");
   });
 });
 
