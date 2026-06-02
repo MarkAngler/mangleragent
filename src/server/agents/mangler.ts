@@ -4,6 +4,7 @@ import { messagesRepo } from "../db/chat";
 import { configRepo } from "../db/config";
 import { broadcast } from "../realtime/hub";
 import { recallUserMemory, recordTurn } from "../honcho";
+import { listDefs, readDef, MANGLER_SCOPE } from "../defs";
 import { getAnthropic } from "./anthropic";
 import { streamDatabricks } from "./databricks";
 import { anthropicTools, runTool } from "./manglerTools";
@@ -35,6 +36,28 @@ export function manglerSystemPrompt(): string {
   return configRepo.get("mangler_system_prompt") || DEFAULT_MANGLER_SYSTEM;
 }
 
+// Mangler's user-authored definitions (Definitions → Mangler scope): rules are
+// injected in full as always-on guidance; skills are listed by name+description
+// and pulled in full on demand via the load_skill tool. Recomputed each turn so
+// edits take effect immediately. Returns "" when nothing is configured.
+export function manglerDefinitionsPrompt(): string {
+  let addon = "";
+  const rules = listDefs(MANGLER_SCOPE, "rule");
+  if (rules.length) {
+    addon += "\n\n## Rules (always follow)";
+    for (const rule of rules) {
+      const file = readDef(MANGLER_SCOPE, "rule", rule.name);
+      if (file) addon += `\n\n### ${rule.name}\n${file.content}`;
+    }
+  }
+  const skills = listDefs(MANGLER_SCOPE, "skill");
+  if (skills.length) {
+    addon += "\n\n## Available skills\nCall the load_skill tool to load a skill's full instructions before using it.\n";
+    for (const skill of skills) addon += `- ${skill.name}: ${skill.description}\n`;
+  }
+  return addon;
+}
+
 const MAX_TURNS = 12;
 
 function summarize(name: string, output: unknown): string | undefined {
@@ -51,6 +74,8 @@ function summarize(name: string, output: unknown): string | undefined {
       return `note "${String(out.title ?? "")}"`;
     case "create_task":
       return `task "${String(out.title ?? "")}"`;
+    case "load_skill":
+      return `loaded "${String(out.name ?? "")}"`;
     default:
       return Array.isArray(output) ? `${output.length} items` : undefined;
   }
@@ -78,7 +103,7 @@ export async function runMangler(conversationId: string, modelOverride?: string)
   const lastUser = [...history].reverse().find((m) => m.role === "user" && typeof m.content === "string");
   const userText = typeof lastUser?.content === "string" ? lastUser.content : "";
 
-  let system = manglerSystemPrompt();
+  let system = manglerSystemPrompt() + manglerDefinitionsPrompt();
   const memory = await recallUserMemory(MEMORY_QUERY);
   if (memory) system += `\n\n## Memory about the user (from honcho)\n${memory}`;
 

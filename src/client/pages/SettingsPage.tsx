@@ -110,7 +110,9 @@ export function SettingsPage() {
               Reset to default
             </Button>
           </div>
-          <p className="mt-2 text-[12px] text-muted">Defines Mangler's persona and operating rules. Reset restores the built-in default.</p>
+          <p className="mt-2 text-[12px] text-muted">
+            Defines Mangler's persona and operating rules. Reset restores the built-in default. Add reusable rules and skills under Definitions → Mangler.
+          </p>
         </Card>
 
         <Card className="p-5">
