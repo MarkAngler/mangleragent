@@ -20,6 +20,9 @@ export function DefinitionsPage() {
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyTargets, setCopyTargets] = useState<string[]>([]);
 
+  // Mangler can't spawn sub-agents, so its scope offers only skills and rules.
+  const visibleKinds = scope === "mangler" ? KINDS.filter((k) => k.id !== "agent") : KINDS;
+
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => get<Project[]>("/projects") });
   const listKey = ["defs", scope, kind];
   const { data: entries = [] } = useQuery({ queryKey: listKey, queryFn: () => get<DefEntry[]>(`/defs?scope=${scope}&kind=${kind}`) });
@@ -82,17 +85,20 @@ export function DefinitionsPage() {
       <PageHeader
         eyebrow="Customize"
         title="Definitions"
-        description="Custom agents, skills, and rules — identical syntax to Claude Code markdown. Delegated agents load these from the project's .claude folder."
+        description="Custom agents, skills, and rules — identical syntax to Claude Code markdown. Delegated agents load these from the project's .claude folder; the Mangler scope customizes the chat agent itself."
         actions={
           <select
             value={scope}
             onChange={(e) => {
-              setScope(e.target.value);
+              const next = e.target.value;
+              setScope(next);
               setSelected(null);
+              if (next === "mangler" && kind === "agent") setKind("rule");
             }}
             className="rounded-md border border-hairline-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent"
           >
             <option value="global">Global</option>
+            <option value="mangler">Mangler</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -103,7 +109,7 @@ export function DefinitionsPage() {
       />
 
       <div className="mb-5 flex gap-1 border-b border-hairline">
-        {KINDS.map((k) => (
+        {visibleKinds.map((k) => (
           <button
             key={k.id}
             onClick={() => {

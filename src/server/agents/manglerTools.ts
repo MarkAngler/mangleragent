@@ -7,6 +7,7 @@ import { tasksRepo } from "../db/tasks";
 import { appendPosition } from "../../shared/board";
 import { broadcast } from "../realtime/hub";
 import { runsRepo } from "../db/runs";
+import { readDef, MANGLER_SCOPE } from "../defs";
 import { startOrchestratedRun } from "./orchestrator";
 import { Approver } from "../../shared/types";
 
@@ -160,6 +161,15 @@ const defs: ErasedTool[] = [
       void startOrchestratedRun(run, prompt);
       broadcast({ type: "run.updated", runId: run.id });
       return { runId: run.id, status: "started", approver: run.approver };
+    },
+  }),
+  tool({
+    name: "load_skill",
+    description: "Load the full instructions for one of the skills listed in your system prompt. Call this before using a skill.",
+    schema: z.object({ name: z.string() }),
+    handler: ({ name }) => {
+      const file = readDef(MANGLER_SCOPE, "skill", name);
+      return file ? { name, content: file.content } : { error: "no such skill" };
     },
   }),
 ];

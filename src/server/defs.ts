@@ -8,10 +8,15 @@ import type { DefEntry, DefFile, DefKind } from "../shared/types";
 //   agents -> .claude/agents/<name>.md
 //   skills -> .claude/skills/<name>/SKILL.md
 //   rules  -> .claude/rules/<name>.md
-// Scope is "global" (the data dir) or a projectId (the project folder).
+// Scope is "global" (the data dir), "mangler" (the Mangler chat agent's own
+// definitions in the data dir), or a projectId (the project folder).
+
+// The scope under which the Mangler chat agent's own rules and skills live.
+export const MANGLER_SCOPE = "mangler";
 
 function baseDir(scope: string): string {
   if (scope === "global") return path.join(env.dataDir, ".claude");
+  if (scope === MANGLER_SCOPE) return path.join(env.dataDir, ".claude-mangler");
   const project = projectsRepo.get(scope);
   if (!project) throw new Error("project not found");
   return path.join(project.path, ".claude");
