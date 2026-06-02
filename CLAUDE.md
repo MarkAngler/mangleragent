@@ -27,6 +27,7 @@ npm run lint       # eslint .  (no Prettier; ESLint only)
 ## Environment & setup
 
 - Requires a Claude API key: `CLAUDE_API_KEY` or `ANTHROPIC_API_KEY`. The `claude` CLI must be on `PATH` only for *interactive terminal* sessions; orchestrated agents use the bundled Agent SDK. See `.env.example` for all vars (`PORT`, `MANGLED_DATA_DIR`, `MANGLED_CLAUDE_BIN`, `MANGLED_HONCHO_WORKSPACE`, `HONCHO_DEV_API_KEY`).
+- Optional: `DATABRICKS_HOST` + `DATABRICKS_TOKEN` (aliases: `DATABRICKS_WORKSPACE` / `DATABRICKS_PAT`) let Mangler run through the Databricks AI Gateway (OpenAI-compatible) instead of the direct Anthropic API; switch providers in Settings. Mangler chat only — orchestrated agents and the PTY terminal still use Anthropic / the `claude` CLI.
 - `engines` requires Node ≥20. **Local caveat:** use nvm Node 24 — `better-sqlite3` is a native module, and a Node ABI mismatch causes runtime crashes. Rebuild dependencies after switching Node versions.
 - Data and the SQLite DB live under `~/.mangled-agents` (override with `MANGLED_DATA_DIR`).
 

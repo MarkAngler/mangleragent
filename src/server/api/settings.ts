@@ -10,6 +10,8 @@ export const settingsRouter = Router();
 settingsRouter.get("/settings", (_req, res) => {
   res.json({
     anthropicConfigured: Boolean(env.anthropicApiKey),
+    databricksConfigured: Boolean(env.databricksHost && env.databricksToken),
+    provider: configRepo.get("mangler_provider") ?? "anthropic",
     honchoConfigured: honchoConfigured(),
     honchoEnabled: configRepo.getBool("honcho_enabled", false),
     honchoWorkspace: honchoWorkspace(),
@@ -20,6 +22,7 @@ settingsRouter.get("/settings", (_req, res) => {
 });
 
 const PatchInput = z.object({
+  provider: z.enum(["anthropic", "databricks"]).optional(),
   honchoEnabled: z.boolean().optional(),
   honchoWorkspace: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
@@ -32,6 +35,7 @@ settingsRouter.patch("/settings", (req, res) => {
     res.status(400).json({ error: "invalid settings" });
     return;
   }
+  if (parsed.data.provider) configRepo.set("mangler_provider", parsed.data.provider);
   if (parsed.data.honchoEnabled !== undefined) configRepo.set("honcho_enabled", String(parsed.data.honchoEnabled));
   if (parsed.data.honchoWorkspace) configRepo.set("honcho_workspace", parsed.data.honchoWorkspace);
   if (parsed.data.model) configRepo.set("mangler_model", parsed.data.model);
