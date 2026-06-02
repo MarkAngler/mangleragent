@@ -5,6 +5,8 @@ import { Button, Card, Input, Mono, PageHeader, StatusDot, Textarea } from "../c
 
 interface Settings {
   anthropicConfigured: boolean;
+  databricksConfigured: boolean;
+  provider: "anthropic" | "databricks";
   honchoConfigured: boolean;
   honchoEnabled: boolean;
   honchoWorkspace: string;
@@ -18,7 +20,7 @@ export function SettingsPage() {
   const { data } = useQuery({ queryKey: ["settings"], queryFn: () => get<Settings>("/settings") });
 
   const update = useMutation({
-    mutationFn: (patchBody: Partial<Pick<Settings, "honchoEnabled" | "honchoWorkspace" | "model" | "systemPrompt">>) => patch("/settings", patchBody),
+    mutationFn: (patchBody: Partial<Pick<Settings, "provider" | "honchoEnabled" | "honchoWorkspace" | "model" | "systemPrompt">>) => patch("/settings", patchBody),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["settings"] }),
   });
 
@@ -40,8 +42,27 @@ export function SettingsPage() {
           <Mono>credentials</Mono>
           <div className="mt-3 flex flex-col gap-2 text-sm">
             <Row label="Claude API key" ok={data?.anthropicConfigured} hint="from CLAUDE_API_KEY / ANTHROPIC_API_KEY" />
+            <Row label="Databricks token" ok={data?.databricksConfigured} hint="from DATABRICKS_HOST / DATABRICKS_TOKEN" />
             <Row label="Honcho API key" ok={data?.honchoConfigured} hint="from HONCHO_DEV_API_KEY" />
           </div>
+        </Card>
+
+        <Card className="p-5">
+          <Mono>mangler provider</Mono>
+          <select
+            value={data?.provider ?? "anthropic"}
+            onChange={(e) => update.mutate({ provider: e.target.value as Settings["provider"] })}
+            className="mt-3 w-full rounded-md border border-hairline-strong bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+          >
+            <option value="anthropic">Anthropic API</option>
+            <option value="databricks">Databricks AI Gateway</option>
+          </select>
+          {data?.provider === "databricks" && !data?.databricksConfigured && (
+            <p className="mt-3 flex items-center gap-2 text-[12px] text-warn">
+              <StatusDot tone="warn" /> Set DATABRICKS_HOST and DATABRICKS_TOKEN to enable this.
+            </p>
+          )}
+          <p className="mt-2 text-[12px] text-muted">Route Mangler through the direct Anthropic API or your Databricks AI Gateway.</p>
         </Card>
 
         <Card className="p-5">
@@ -56,7 +77,11 @@ export function SettingsPage() {
               Save
             </Button>
           </div>
-          <p className="mt-2 text-[12px] text-muted">e.g. claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5-20251001</p>
+          <p className="mt-2 text-[12px] text-muted">
+            {data?.provider === "databricks"
+              ? "e.g. databricks-claude-opus-4-8, databricks-claude-sonnet-4-6"
+              : "e.g. claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5-20251001"}
+          </p>
         </Card>
 
         <Card className="p-5">

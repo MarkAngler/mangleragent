@@ -18,6 +18,8 @@ export const env = {
   dbPath: path.join(dataDir, "data.db"),
   runsDir: path.join(dataDir, "runs"),
   anthropicApiKey,
+  databricksHost: process.env.DATABRICKS_HOST ?? process.env.DATABRICKS_WORKSPACE,
+  databricksToken: process.env.DATABRICKS_TOKEN ?? process.env.DATABRICKS_PAT,
   honchoApiKey: process.env.HONCHO_API_KEY ?? process.env.HONCHO_DEV_API_KEY,
   port: Number(process.env.PORT ?? 4173),
   isDev: process.env.MANGLED_DEV === "1",
