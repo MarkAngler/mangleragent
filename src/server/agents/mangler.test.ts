@@ -68,12 +68,12 @@ describe("manglerDefinitionsPrompt", () => {
       expect(prompt).not.toContain("SKILL_BODY_MARKER");
     });
 
-    it("load_skill returns the full SKILL.md for a known skill", () => {
-      expect(runTool("load_skill", { name: "triage" })).toEqual({ name: "triage", content: SKILL_CONTENT });
+    it("load_skill returns the full SKILL.md for a known skill", async () => {
+      expect(await runTool("load_skill", { name: "triage" }, { conversationId: "test" })).toEqual({ name: "triage", content: SKILL_CONTENT });
     });
 
-    it("load_skill returns an error for an unknown skill", () => {
-      expect(runTool("load_skill", { name: "does-not-exist" })).toEqual({ error: "no such skill" });
+    it("load_skill returns an error for an unknown skill", async () => {
+      expect(await runTool("load_skill", { name: "does-not-exist" }, { conversationId: "test" })).toEqual({ error: "no such skill" });
     });
   });
 });

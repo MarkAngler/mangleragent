@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { conversationsRepo, messagesRepo } from "../db/chat";
 import { runMangler } from "../agents/mangler";
+import { decideCommand } from "../agents/manglerCommands";
 
 export const manglerRouter = Router();
 
@@ -47,4 +48,19 @@ manglerRouter.post("/conversations/:id/messages", (req, res) => {
 
 manglerRouter.delete("/conversations/:id", (req, res) => {
   res.status(conversationsRepo.remove(req.params.id) ? 204 : 404).end();
+});
+
+const DecideCommandInput = z.object({ approved: z.boolean(), reason: z.string().optional() });
+
+manglerRouter.post("/commands/:commandId/decide", (req, res) => {
+  const parsed = DecideCommandInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "approved (boolean) required" });
+    return;
+  }
+  if (!decideCommand(req.params.commandId, parsed.data.approved, parsed.data.reason)) {
+    res.status(409).json({ error: "no pending command for this id" });
+    return;
+  }
+  res.json({ ok: true });
 });

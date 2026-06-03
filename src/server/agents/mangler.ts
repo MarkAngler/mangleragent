@@ -78,6 +78,8 @@ function summarize(name: string, output: unknown): string | undefined {
       return `scheduled "${String(out.title ?? "")}"`;
     case "load_skill":
       return `loaded "${String(out.name ?? "")}"`;
+    case "run_command":
+      return "denied" in out ? "denied" : `exit ${String(out.exitCode ?? "?")}`;
     default:
       return Array.isArray(output) ? `${output.length} items` : undefined;
   }
@@ -138,7 +140,7 @@ export async function runMangler(conversationId: string, modelOverride?: string)
       for (const block of content) {
         if (block.type !== "tool_use") continue;
         broadcast({ type: "mangler.tool", conversationId, tool: block.name, phase: "start" });
-        const output = runTool(block.name, block.input);
+        const output = await runTool(block.name, block.input, { conversationId });
         results.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(output) });
         broadcast({ type: "mangler.tool", conversationId, tool: block.name, phase: "done", summary: summarize(block.name, output) });
       }

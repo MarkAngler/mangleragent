@@ -11,6 +11,12 @@ interface ToolEvent {
   summary?: string;
 }
 
+interface PendingCommand {
+  commandId: string;
+  command: string;
+  cwd: string;
+}
+
 interface ContentBlock {
   type: string;
   text?: string;
@@ -37,6 +43,7 @@ export function ManglerPage() {
   const [running, setRunning] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
+  const [pendingCommands, setPendingCommands] = useState<PendingCommand[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const { data: conversations = [] } = useQuery({ queryKey: ["conversations"], queryFn: () => get<Conversation[]>("/conversations") });
@@ -69,16 +76,30 @@ export function ManglerPage() {
         next[i] = { tool: msg.tool, done: true, summary: msg.summary };
         return next;
       });
+    } else if (msg.type === "mangler.command") {
+      setPendingCommands((prev) => [...prev, { commandId: msg.commandId, command: msg.command, cwd: msg.cwd }]);
+    } else if (msg.type === "mangler.command_resolved") {
+      setPendingCommands((prev) => prev.filter((c) => c.commandId !== msg.commandId));
     } else if (msg.type === "mangler.done") {
       setRunning(false);
       setStreamingText("");
       setToolEvents([]);
+      setPendingCommands([]);
       void qc.invalidateQueries({ queryKey: ["messages", activeIdRef.current] });
     } else if (msg.type === "mangler.error") {
       setRunning(false);
       setError(msg.error);
     }
   });
+
+  const decideCommand = useMutation({
+    mutationFn: (vars: { commandId: string; approved: boolean }) => post(`/commands/${vars.commandId}/decide`, { approved: vars.approved }),
+  });
+
+  function decide(commandId: string, approved: boolean) {
+    setPendingCommands((prev) => prev.filter((c) => c.commandId !== commandId));
+    decideCommand.mutate({ commandId, approved });
+  }
 
   const removeConversation = useMutation({
     mutationFn: (id: string) => del(`/conversations/${id}`),
@@ -105,6 +126,7 @@ export function ManglerPage() {
     setRunning(true);
     setStreamingText("");
     setToolEvents([]);
+    setPendingCommands([]);
     await post(`/conversations/${cid}/messages`, { text });
     void qc.invalidateQueries({ queryKey: ["messages", cid] });
     void qc.invalidateQueries({ queryKey: ["conversations"] });
@@ -175,7 +197,16 @@ export function ManglerPage() {
             {streamingText && <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{streamingText}</p>}
           </div>
         )}
-        {running && !streamingText && toolEvents.length === 0 && <p className="text-sm text-faint">Mangler is thinking…</p>}
+        {pendingCommands.length > 0 && (
+          <div className="space-y-3">
+            {pendingCommands.map((c) => (
+              <CommandApproval key={c.commandId} command={c} onDecide={decide} />
+            ))}
+          </div>
+        )}
+        {running && !streamingText && toolEvents.length === 0 && pendingCommands.length === 0 && (
+          <p className="text-sm text-faint">Mangler is thinking…</p>
+        )}
         {error && <p className="text-sm text-bad">{error}</p>}
 
         <div ref={bottomRef} />
@@ -236,6 +267,25 @@ function MessageView({ message }: { message: ChatMessage }) {
         </div>
       )}
       {text && <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{text}</p>}
+    </div>
+  );
+}
+
+function CommandApproval({ command, onDecide }: { command: PendingCommand; onDecide: (commandId: string, approved: boolean) => void }) {
+  return (
+    <div className="max-w-2xl rounded-lg border border-warn/40 bg-warn/5">
+      <div className="flex items-center gap-2 px-4 pt-3">
+        <StatusDot tone="warn" pulse />
+        <Mono>run command</Mono>
+        <span className="text-[12px] text-faint">{command.cwd}</span>
+      </div>
+      <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-[12px] leading-relaxed text-ink">{command.command}</pre>
+      <div className="flex gap-2 border-t border-hairline px-4 py-3">
+        <Button variant="solid" onClick={() => onDecide(command.commandId, true)}>
+          Approve &amp; run
+        </Button>
+        <Button onClick={() => onDecide(command.commandId, false)}>Deny</Button>
+      </div>
     </div>
   );
 }

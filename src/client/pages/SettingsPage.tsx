@@ -13,6 +13,8 @@ interface Settings {
   model: string;
   systemPrompt: string;
   defaultSystemPrompt: string;
+  cliAutorun: boolean;
+  cliWorkdir: string;
 }
 
 export function SettingsPage() {
@@ -20,7 +22,7 @@ export function SettingsPage() {
   const { data } = useQuery({ queryKey: ["settings"], queryFn: () => get<Settings>("/settings") });
 
   const update = useMutation({
-    mutationFn: (patchBody: Partial<Pick<Settings, "provider" | "honchoEnabled" | "honchoWorkspace" | "model" | "systemPrompt">>) => patch("/settings", patchBody),
+    mutationFn: (patchBody: Partial<Pick<Settings, "provider" | "honchoEnabled" | "honchoWorkspace" | "model" | "systemPrompt" | "cliAutorun" | "cliWorkdir">>) => patch("/settings", patchBody),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["settings"] }),
   });
 
@@ -32,6 +34,9 @@ export function SettingsPage() {
 
   const [prompt, setPrompt] = useState<string | null>(null);
   const promptValue = prompt ?? data?.systemPrompt ?? "";
+
+  const [cliWorkdir, setCliWorkdir] = useState<string | null>(null);
+  const cliWorkdirValue = cliWorkdir ?? data?.cliWorkdir ?? "";
 
   return (
     <>
@@ -151,6 +156,39 @@ export function SettingsPage() {
               </Button>
             </div>
             <p className="mt-2 text-[12px] text-muted">defaults to mangled-agents</p>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <Mono>mangler cli</Mono>
+              <p className="mt-2 max-w-sm text-sm text-muted">
+                Run commands without approval. When off, Mangler asks you to approve each command before it runs.
+              </p>
+            </div>
+            <button
+              onClick={() => update.mutate({ cliAutorun: !data?.cliAutorun })}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                data?.cliAutorun ? "bg-accent" : "bg-hairline-strong"
+              }`}
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface transition-all ${data?.cliAutorun ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
+          <div className="mt-4">
+            <Mono>default working directory</Mono>
+            <div className="mt-2 flex gap-2">
+              <Input value={cliWorkdirValue} onChange={(e) => setCliWorkdir(e.target.value)} className="font-mono text-[13px]" placeholder="/path/to/dir" />
+              <Button
+                variant="solid"
+                disabled={cliWorkdir === null || cliWorkdir === data?.cliWorkdir || update.isPending}
+                onClick={() => update.mutate({ cliWorkdir: cliWorkdirValue })}
+              >
+                Save
+              </Button>
+            </div>
+            <p className="mt-2 text-[12px] text-muted">Where commands run when Mangler doesn't pass a project. Leave blank to require a project per command.</p>
           </div>
         </Card>
       </div>

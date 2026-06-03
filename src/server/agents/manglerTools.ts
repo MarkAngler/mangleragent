@@ -12,31 +12,37 @@ import { readDef, MANGLER_SCOPE } from "../defs";
 import { startOrchestratedRun } from "./orchestrator";
 import { isValidCron, nextRun } from "../cron";
 import { Approver } from "../../shared/types";
+import { runManglerCommand } from "./manglerCommands";
+
+export interface ToolContext {
+  conversationId: string;
+}
 
 interface ErasedTool {
   name: string;
   description: string;
   schema: z.ZodType;
-  run: (input: unknown) => unknown;
+  run: (input: unknown, ctx: ToolContext) => Promise<unknown>;
 }
 
 // Bind validation to each tool so the registry can stay homogeneous while each
-// handler still sees a fully-typed, validated input.
+// handler still sees a fully-typed, validated input. Handlers may be sync or
+// async; ctx (e.g. the conversation) is available to those that need it.
 function tool<S extends z.ZodType>(def: {
   name: string;
   description: string;
   schema: S;
-  handler: (input: z.infer<S>) => unknown;
+  handler: (input: z.infer<S>, ctx: ToolContext) => unknown | Promise<unknown>;
 }): ErasedTool {
   return {
     name: def.name,
     description: def.description,
     schema: def.schema,
-    run: (input) => {
+    run: async (input, ctx) => {
       const parsed = def.schema.safeParse(input ?? {});
       if (!parsed.success) return { error: `invalid arguments: ${parsed.error.issues[0]?.message ?? "bad input"}` };
       try {
-        return def.handler(parsed.data);
+        return await def.handler(parsed.data, ctx);
       } catch (err) {
         return { error: (err as Error).message };
       }
@@ -208,6 +214,13 @@ const defs: ErasedTool[] = [
       return file ? { name, content: file.content } : { error: "no such skill" };
     },
   }),
+  tool({
+    name: "run_command",
+    description:
+      "Run a shell command (CLI tool) and return { exitCode, stdout, stderr }. Pass projectId to run inside that project's folder; otherwise it runs in the default CLI working directory from Settings. Unless the user has enabled auto-run, each command must be approved before it executes — a denied command returns { denied: true }.",
+    schema: z.object({ command: z.string().min(1), projectId: z.string().optional() }),
+    handler: (input, ctx) => runManglerCommand(input, ctx),
+  }),
 ];
 
 export const anthropicTools: Anthropic.Tool[] = defs.map((d) => ({
@@ -218,8 +231,8 @@ export const anthropicTools: Anthropic.Tool[] = defs.map((d) => ({
 
 const byName = new Map(defs.map((d) => [d.name, d]));
 
-export function runTool(name: string, input: unknown): unknown {
+export function runTool(name: string, input: unknown, ctx: ToolContext): Promise<unknown> {
   const def = byName.get(name);
-  if (!def) return { error: `unknown tool: ${name}` };
-  return def.run(input);
+  if (!def) return Promise.resolve({ error: `unknown tool: ${name}` });
+  return def.run(input, ctx);
 }

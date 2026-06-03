@@ -25,6 +25,14 @@ export const ServerMsg = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("mangler.done"), conversationId: z.string() }),
   z.object({ type: z.literal("mangler.error"), conversationId: z.string(), error: z.string() }),
+  z.object({
+    type: z.literal("mangler.command"),
+    conversationId: z.string(),
+    commandId: z.string(),
+    command: z.string(),
+    cwd: z.string(),
+  }),
+  z.object({ type: z.literal("mangler.command_resolved"), conversationId: z.string(), commandId: z.string(), approved: z.boolean() }),
 ]);
 export type ServerMsg = z.infer<typeof ServerMsg>;
 

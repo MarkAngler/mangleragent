@@ -18,6 +18,8 @@ settingsRouter.get("/settings", (_req, res) => {
     model: configRepo.get("mangler_model") ?? DEFAULT_MANGLER_MODEL,
     systemPrompt: manglerSystemPrompt(),
     defaultSystemPrompt: DEFAULT_MANGLER_SYSTEM,
+    cliAutorun: configRepo.getBool("mangler_cli_autorun", false),
+    cliWorkdir: configRepo.get("mangler_cli_workdir") ?? "",
   });
 });
 
@@ -27,6 +29,8 @@ const PatchInput = z.object({
   honchoWorkspace: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   systemPrompt: z.string().max(20000).optional(),
+  cliAutorun: z.boolean().optional(),
+  cliWorkdir: z.string().optional(),
 });
 
 settingsRouter.patch("/settings", (req, res) => {
@@ -40,5 +44,7 @@ settingsRouter.patch("/settings", (req, res) => {
   if (parsed.data.honchoWorkspace) configRepo.set("honcho_workspace", parsed.data.honchoWorkspace);
   if (parsed.data.model) configRepo.set("mangler_model", parsed.data.model);
   if (parsed.data.systemPrompt !== undefined) configRepo.set("mangler_system_prompt", parsed.data.systemPrompt);
+  if (parsed.data.cliAutorun !== undefined) configRepo.set("mangler_cli_autorun", String(parsed.data.cliAutorun));
+  if (parsed.data.cliWorkdir !== undefined) configRepo.set("mangler_cli_workdir", parsed.data.cliWorkdir);
   res.json({ ok: true });
 });
