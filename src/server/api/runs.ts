@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { runsRepo } from "../db/runs";
 import { projectsRepo } from "../db/projects";
 import { ticketsRepo } from "../db/tickets";
@@ -49,8 +50,11 @@ runsRouter.post("/runs/pty", (req, res) => {
     permissionMode: "interactive",
     cwd: project.path,
   });
-  startPtySession(run.id, project.path);
-  broadcast({ type: "run.updated", runId: run.id });
+  // Pin a known session id so the terminal can be resumed (claude --resume) after a restart.
+  const sessionId = randomUUID();
+  runsRepo.setSessionId(run.id, sessionId);
+  run.sdkSessionId = sessionId;
+  startPtySession(run.id, project.path, { sessionId });
   res.status(201).json(run);
 });
 

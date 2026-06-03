@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import open from "open";
 import { env } from "./env";
 import { initDb } from "./db";
+import { runsRepo } from "./db/runs";
 import { createWsHub } from "./realtime/hub";
 import { healthRouter } from "./api/health";
 import { projectsRouter } from "./api/projects";
@@ -24,6 +25,7 @@ const clientDir = path.resolve(here, "../client");
 
 function main(): void {
   initDb();
+  runsRepo.markRunningPtyStopped();
 
   const app = express();
   app.use(express.json({ limit: "8mb" }));

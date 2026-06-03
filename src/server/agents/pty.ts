@@ -17,10 +17,20 @@ interface PtySession {
 const sessions = new Map<string, PtySession>();
 const termWss = new WebSocketServer({ noServer: true });
 
-export function startPtySession(runId: string, cwd: string): void {
+interface SpawnOpts {
+  sessionId?: string;
+  resume?: boolean;
+}
+
+export function ptyArgs(opts?: SpawnOpts): string[] {
+  if (!opts?.sessionId) return [];
+  return opts.resume ? ["--resume", opts.sessionId] : ["--session-id", opts.sessionId];
+}
+
+export function startPtySession(runId: string, cwd: string, opts?: SpawnOpts): void {
   let term: IPty;
   try {
-    term = nodePty.spawn(CLAUDE_BIN, [], {
+    term = nodePty.spawn(CLAUDE_BIN, ptyArgs(opts), {
       name: "xterm-256color",
       cols: 80,
       rows: 24,
@@ -36,6 +46,8 @@ export function startPtySession(runId: string, cwd: string): void {
 
   const session: PtySession = { term, buffer: "", sockets: new Set(), killing: false };
   sessions.set(runId, session);
+  runsRepo.setStatus(runId, "running");
+  broadcast({ type: "run.updated", runId });
 
   term.onData((data) => {
     session.buffer = (session.buffer + data).slice(-SCROLLBACK_LIMIT);
@@ -69,7 +81,16 @@ export function isPtyAlive(runId: string): boolean {
 }
 
 function attachSocket(runId: string, ws: WebSocket): void {
-  const session = sessions.get(runId);
+  let session = sessions.get(runId);
+  if (!session) {
+    // The PTY process is gone (e.g. the server restarted). Revive it by resuming the
+    // run's recorded conversation, or fresh for legacy runs that predate session tracking.
+    const run = runsRepo.get(runId);
+    if (run?.kind === "pty") {
+      startPtySession(runId, run.cwd, run.sdkSessionId ? { sessionId: run.sdkSessionId, resume: true } : undefined);
+      session = sessions.get(runId);
+    }
+  }
   if (!session) {
     ws.send("\r\n\x1b[2m[session has ended]\x1b[0m\r\n");
     ws.close();

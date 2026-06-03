@@ -95,6 +95,12 @@ export const runsRepo = {
     db().prepare("UPDATE agent_runs SET status = ?, ended_at = COALESCE(?, ended_at) WHERE id = ?").run(status, endedAt, id);
   },
 
+  // PTY sessions live only in server memory; a restart orphans their 'running' rows. Reconcile
+  // them to 'stopped' on boot so the list reflects reality (reconnecting revives them on demand).
+  markRunningPtyStopped(): void {
+    db().prepare("UPDATE agent_runs SET status = 'stopped', ended_at = COALESCE(ended_at, ?) WHERE kind = 'pty' AND status = 'running'").run(now());
+  },
+
   setSessionId(id: string, sdkSessionId: string): void {
     db().prepare("UPDATE agent_runs SET sdk_session_id = ? WHERE id = ?").run(sdkSessionId, id);
   },
