@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "./env";
-import type { DiffFileStatus, FileDiff, RunDiff } from "../shared/types";
+import type { DiffFileStatus, FileDiff, GitBranches, RunDiff } from "../shared/types";
 
 const IDX_DIR = path.join(env.dataDir, "diff-idx");
 const GIT_TIMEOUT = 15_000;
@@ -175,4 +175,40 @@ export function runDiff(cwd: string): RunDiff {
   } catch {
     return unavailable;
   }
+}
+
+/**
+ * The local branches in `cwd` and the currently checked-out one. Read-only.
+ * `current` is null for a detached HEAD or an unborn branch (repo with no
+ * commits). Degrades to { available:false } for non-git/missing directories.
+ */
+export function listBranches(cwd: string): GitBranches {
+  const unavailable: GitBranches = { available: false, current: null, branches: [] };
+  if (!fs.existsSync(cwd) || !isGitRepo(cwd)) return unavailable;
+  try {
+    const branches = git(cwd, ["for-each-ref", "--format=%(refname:short)", "refs/heads"])
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let current: string | null = null;
+    try {
+      const head = git(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"]).trim();
+      current = head && branches.includes(head) ? head : null;
+    } catch {
+      current = null; // detached HEAD
+    }
+    return { available: true, current, branches };
+  } catch {
+    return unavailable;
+  }
+}
+
+/**
+ * Check out `branch`, creating it first when `create` is true. Throws on git
+ * failure (e.g. a dirty tree blocking the switch, or a name that already
+ * exists) so callers can surface git's stderr. Returns the post-switch state.
+ */
+export function switchBranch(cwd: string, branch: string, create: boolean): GitBranches {
+  git(cwd, create ? ["checkout", "-b", branch] : ["checkout", branch]);
+  return listBranches(cwd);
 }

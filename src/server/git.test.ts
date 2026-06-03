@@ -8,7 +8,7 @@ import fs from "node:fs";
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "ma-git-data-"));
 process.env.MANGLED_DATA_DIR = dataDir;
 
-const { isGitRepo, snapshotTree, runDiff } = await import("./git");
+const { isGitRepo, snapshotTree, runDiff, listBranches, switchBranch } = await import("./git");
 
 function git(repo: string, ...args: string[]): string {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" });
@@ -104,5 +104,63 @@ describe("runDiff", () => {
     const diff = runDiff(repo);
     expect(diff.available).toBe(true);
     expect(diff.files).toEqual([]);
+  });
+});
+
+function commit(repo: string, rel: string, content: string): void {
+  write(repo, rel, content);
+  git(repo, "add", "-A");
+  git(repo, "commit", "-qm", `add ${rel}`);
+}
+
+describe("listBranches / switchBranch", () => {
+  it("lists the lone branch and reports it as current after a commit", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    const head = git(repo, "rev-parse", "--abbrev-ref", "HEAD").trim();
+
+    const result = listBranches(repo);
+    expect(result.available).toBe(true);
+    expect(result.current).toBe(head);
+    expect(result.branches).toEqual([head]);
+  });
+
+  it("creates and checks out a new branch, then switches back", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    const base = git(repo, "rev-parse", "--abbrev-ref", "HEAD").trim();
+
+    const created = switchBranch(repo, "feature", true);
+    expect(created.current).toBe("feature");
+    expect(created.branches).toEqual(expect.arrayContaining([base, "feature"]));
+    expect(git(repo, "rev-parse", "--abbrev-ref", "HEAD").trim()).toBe("feature");
+
+    const back = switchBranch(repo, base, false);
+    expect(back.current).toBe(base);
+    expect(git(repo, "rev-parse", "--abbrev-ref", "HEAD").trim()).toBe(base);
+  });
+
+  it("reports current as null for an unborn repo with no commits", () => {
+    const repo = makeRepo();
+    const result = listBranches(repo);
+    expect(result.available).toBe(true);
+    expect(result.current).toBeNull();
+    expect(result.branches).toEqual([]);
+  });
+
+  it("returns unavailable for non-git and missing directories", () => {
+    const plain = fs.mkdtempSync(path.join(os.tmpdir(), "ma-plain-branches-"));
+    expect(listBranches(plain).available).toBe(false);
+    expect(listBranches(path.join(os.tmpdir(), "ma-nope-does-not-exist")).available).toBe(false);
+  });
+
+  it("throws when creating a branch that already exists", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    switchBranch(repo, "dup", true);
+    const base = listBranches(repo).branches.find((b) => b !== "dup")!;
+    switchBranch(repo, base, false);
+
+    expect(() => switchBranch(repo, "dup", true)).toThrow();
   });
 });

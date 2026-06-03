@@ -3,7 +3,8 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { projectsRepo } from "../db/projects";
-import { CreateProjectInput, UpdateProjectInput } from "../../shared/types";
+import { listBranches, switchBranch } from "../git";
+import { CreateProjectInput, SwitchBranchInput, UpdateProjectInput } from "../../shared/types";
 
 const CODE_BIN = process.env.MANGLED_CODE_BIN ?? "code";
 
@@ -36,6 +37,34 @@ projectsRouter.post("/projects/:id/open", (req, res) => {
     }
     res.json({ ok: true });
   });
+});
+
+projectsRouter.get("/projects/:id/branches", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  res.json(listBranches(project.path));
+});
+
+projectsRouter.post("/projects/:id/branches/switch", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const parsed = SwitchBranchInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "invalid input" });
+    return;
+  }
+  try {
+    res.json(switchBranch(project.path, parsed.data.branch, parsed.data.create ?? false));
+  } catch (err) {
+    const stderr = (err as { stderr?: Buffer | string }).stderr?.toString().trim();
+    res.status(409).json({ error: stderr || "git checkout failed" });
+  }
 });
 
 projectsRouter.post("/projects", (req, res) => {

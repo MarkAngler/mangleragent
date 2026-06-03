@@ -230,6 +230,7 @@ export type GitBranches = z.infer<typeof GitBranches>;
 
 export const SwitchBranchInput = z.object({
   branch: z.string().min(1).max(255).refine((b) => !b.startsWith("-"), "invalid branch name"),
+  create: z.boolean().optional(),
 });
 export type SwitchBranchInput = z.infer<typeof SwitchBranchInput>;
 

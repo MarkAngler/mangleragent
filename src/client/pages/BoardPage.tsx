@@ -4,8 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import { appendPosition, insertPosition } from "../../shared/board";
-import type { AgentRun, Column, Project, Ticket } from "../../shared/types";
+import type { AgentRun, Column, GitBranches, Project, Ticket } from "../../shared/types";
 import { Button, Drawer, Input, Mono, PageHeader, Textarea } from "../components/ui";
+
+// Colons are forbidden in git branch names, so this never collides with a real branch.
+const NEW_BRANCH = "::new::";
 
 export function BoardPage() {
   const { id: projectId = "" } = useParams();
@@ -105,6 +108,7 @@ export function BoardPage() {
               <Link to="/projects">
                 <Mono className="hover:text-accent">← all projects</Mono>
               </Link>
+              <BranchSwitcher projectId={projectId} />
               <Button onClick={() => openVscode.mutate()} disabled={openVscode.isPending}>Open in VS Code</Button>
               <Button onClick={() => openTerminal.mutate({})}>Open terminal</Button>
             </div>
@@ -220,6 +224,83 @@ export function BoardPage() {
         )}
       </Drawer>
     </>
+  );
+}
+
+function BranchSwitcher({ projectId }: { projectId: string }) {
+  const qc = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [newBranch, setNewBranch] = useState("");
+
+  const { data } = useQuery({
+    queryKey: ["branches", projectId],
+    queryFn: () => get<GitBranches>(`/projects/${projectId}/branches`),
+  });
+
+  const switchTo = useMutation({
+    mutationFn: (vars: { branch: string; create?: boolean }) =>
+      post<GitBranches>(`/projects/${projectId}/branches/switch`, vars),
+    onSuccess: (next) => {
+      qc.setQueryData(["branches", projectId], next);
+      setCreating(false);
+      setNewBranch("");
+    },
+    onError: (err) => alert((err as Error).message),
+  });
+
+  if (!data?.available) return null;
+
+  if (creating) {
+    const submit = () => {
+      const branch = newBranch.trim();
+      if (branch) switchTo.mutate({ branch, create: true });
+      else setCreating(false);
+    };
+    return (
+      <Input
+        autoFocus
+        className="w-44"
+        value={newBranch}
+        onChange={(e) => setNewBranch(e.target.value)}
+        onBlur={submit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
+          if (e.key === "Escape") {
+            setNewBranch("");
+            setCreating(false);
+          }
+        }}
+        placeholder="new branch name…"
+      />
+    );
+  }
+
+  return (
+    <select
+      value={data.current ?? ""}
+      disabled={switchTo.isPending}
+      onChange={(e) => {
+        const value = e.target.value;
+        if (value === NEW_BRANCH) {
+          setNewBranch("");
+          setCreating(true);
+        } else if (value !== data.current) {
+          switchTo.mutate({ branch: value });
+        }
+      }}
+      className="rounded-md border border-hairline-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent disabled:opacity-40"
+    >
+      {data.current === null && <option value="">(detached)</option>}
+      {data.branches.map((b) => (
+        <option key={b} value={b}>
+          {b}
+        </option>
+      ))}
+      <option value={NEW_BRANCH}>+ New branch…</option>
+    </select>
   );
 }
 
