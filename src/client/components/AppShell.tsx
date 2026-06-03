@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../lib/api";
 import { useWsStatus } from "../lib/ws";
+import { useAttention } from "./AttentionProvider";
 import { StatusDot } from "./ui";
 
 type Health = { ok: boolean; anthropic: boolean; honcho: boolean };
@@ -19,6 +20,7 @@ const NAV: Array<{ to: string; label: string; end?: boolean }> = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const connected = useWsStatus();
+  const { needsInputCount } = useAttention();
   const { data: health } = useQuery({
     queryKey: ["health"],
     queryFn: () => get<Health>("/health"),
@@ -48,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               end={item.end}
               className={({ isActive }) =>
                 [
-                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-accent-soft text-accent"
                     : "text-muted hover:bg-surface hover:text-ink",
@@ -56,6 +58,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               }
             >
               {item.label}
+              {item.to === "/agents" && needsInputCount > 0 && (
+                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-warn px-1.5 text-[11px] font-semibold text-white">
+                  {needsInputCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

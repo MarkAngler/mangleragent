@@ -1,5 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { ToastProvider } from "./components/Toast";
+import { AttentionProvider } from "./components/AttentionProvider";
 import { ManglerPage } from "./pages/ManglerPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { BoardPage } from "./pages/BoardPage";
@@ -11,17 +13,21 @@ import { SettingsPage } from "./pages/SettingsPage";
 
 export function App() {
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/" element={<ManglerPage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/projects/:id" element={<BoardPage />} />
-        <Route path="/agents" element={<ActiveAgentsPage />} />
-        <Route path="/notes" element={<NotesPage />} />
-        <Route path="/schedules" element={<SchedulesPage />} />
-        <Route path="/definitions" element={<DefinitionsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Routes>
-    </AppShell>
+    <ToastProvider>
+      <AttentionProvider>
+        <AppShell>
+          <Routes>
+            <Route path="/" element={<ManglerPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:id" element={<BoardPage />} />
+            <Route path="/agents" element={<ActiveAgentsPage />} />
+            <Route path="/notes" element={<NotesPage />} />
+            <Route path="/schedules" element={<SchedulesPage />} />
+            <Route path="/definitions" element={<DefinitionsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </AppShell>
+      </AttentionProvider>
+    </ToastProvider>
   );
 }
