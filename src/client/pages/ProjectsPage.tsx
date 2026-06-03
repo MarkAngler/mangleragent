@@ -19,6 +19,10 @@ export function ProjectsPage() {
     queryFn: () => get<Project[]>("/projects"),
   });
 
+  const sortedProjects = [...projects].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+
   const create = useMutation({
     mutationFn: (input: { path: string; description: string }) => post<Project>("/projects", input),
     onSuccess: () => {
@@ -66,7 +70,7 @@ export function ProjectsPage() {
         <EmptyState title="No projects yet" hint="Add a folder to create your first kanban board and agent workspace." />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {projects.map((project) => (
+          {sortedProjects.map((project) => (
             <Card key={project.id} className="group p-5">
               <div className="flex items-start justify-between gap-3">
                 <Link to={`/projects/${project.id}`} className="min-w-0">
