@@ -7,6 +7,7 @@ import { eventsRepo } from "../db/events";
 import { permissionsRepo } from "../db/permissions";
 import { startPtySession, stopPtySession, isPtyAlive } from "../agents/pty";
 import { startOrchestratedRun, stopOrchestratedRun, decideApproval } from "../agents/orchestrator";
+import { truncateForTitle } from "../agents/runTitle";
 import { runDiff } from "../git";
 import { broadcast } from "../realtime/hub";
 import { CreateOrchestratedRunInput, CreatePtyRunInput, DecideInput } from "../../shared/types";
@@ -38,7 +39,7 @@ runsRouter.post("/runs/pty", (req, res) => {
     return;
   }
   const ticket = parsed.data.ticketId ? ticketsRepo.get(parsed.data.ticketId) : undefined;
-  const title = ticket ? `Terminal · ${ticket.title}` : `Terminal · ${project.name}`;
+  const title = ticket ? ticket.title : "Terminal";
 
   const run = runsRepo.create({
     projectId: project.id,
@@ -82,7 +83,7 @@ runsRouter.post("/runs/orchestrated", (req, res) => {
     projectId: project.id,
     ticketId: ticket?.id ?? null,
     kind: "orchestrated",
-    title: ticket ? `Agent · ${ticket.title}` : `Agent · ${project.name}`,
+    title: ticket ? ticket.title : truncateForTitle(prompt),
     status: "planning",
     approver: parsed.data.approver ?? "human",
     permissionMode: "plan",

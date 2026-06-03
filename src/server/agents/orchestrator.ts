@@ -5,6 +5,7 @@ import { eventsRepo } from "../db/events";
 import { permissionsRepo } from "../db/permissions";
 import { broadcast } from "../realtime/hub";
 import { getAnthropic } from "./anthropic";
+import { generateAndSetRunTitle } from "./runTitle";
 import type { AgentRun } from "../../shared/types";
 
 export const DEFAULT_ORCH_MODEL = "claude-sonnet-4-6";
@@ -126,6 +127,7 @@ export async function startOrchestratedRun(run: AgentRun, prompt: string): Promi
   emit(run.id, "system", { text: `Delegated agent starting in ${run.cwd}` });
   runsRepo.setStatus(run.id, "planning");
   broadcast({ type: "run.updated", runId: run.id });
+  void generateAndSetRunTitle(run.id, prompt);
 
   let autoApproved = false;
   const canUseTool: CanUseTool = async (toolName, input) => {

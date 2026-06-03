@@ -158,7 +158,7 @@ const defs: ErasedTool[] = [
         projectId: project.id,
         ticketId: ticket.id,
         kind: "orchestrated",
-        title: `Agent · ${ticket.title}`,
+        title: ticket.title,
         status: "planning",
         approver: approver ?? "agent",
         permissionMode: "plan",

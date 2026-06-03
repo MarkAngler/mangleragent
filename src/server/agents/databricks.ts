@@ -117,3 +117,16 @@ export async function streamDatabricks(args: {
   });
   return accumulateStream(stream, args.onText);
 }
+
+// A plain, tool-free completion for short auxiliary calls (e.g. titling a run).
+export async function completeDatabricks(args: { model: string; system: string; user: string; maxTokens: number }): Promise<string> {
+  const res = await getClient().chat.completions.create({
+    model: args.model,
+    max_tokens: args.maxTokens,
+    messages: [
+      { role: "system", content: args.system },
+      { role: "user", content: args.user },
+    ],
+  });
+  return res.choices[0]?.message?.content ?? "";
+}

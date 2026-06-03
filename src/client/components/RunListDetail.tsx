@@ -49,13 +49,13 @@ export function RunListDetail({ runs, projects }: { runs: AgentRun[]; projects: 
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-sm font-medium text-ink">{run.title}</span>
+              <span className="truncate text-sm font-medium text-ink">{projectName(run.projectId)}</span>
               <StatusDot tone={STATUS_TONE[run.status]} pulse={isActiveRun(run)} />
             </div>
+            <div className="mt-0.5 truncate text-[12px] text-muted">{run.title}</div>
             <div className="mt-1 flex items-center gap-2">
               <Mono>{run.kind === "pty" ? "terminal" : "agent"}</Mono>
               <Mono>· {run.status}</Mono>
-              <Mono>· {projectName(run.projectId)}</Mono>
             </div>
           </button>
         ))}
@@ -71,7 +71,9 @@ export function RunListDetail({ runs, projects }: { runs: AgentRun[]; projects: 
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <StatusDot tone={STATUS_TONE[selected.status]} pulse={isActiveRun(selected)} />
-                <span className="text-sm font-semibold text-ink">{selected.title}</span>
+                <span className="text-sm font-semibold text-ink">
+                  {projectName(selected.projectId)} - {selected.title}
+                </span>
                 <Mono>{selected.status}</Mono>
               </div>
               <div className="flex items-center gap-2">

@@ -30,6 +30,7 @@ export function Terminal({ runId }: { runId: string }) {
     const ws = new WebSocket(`${proto}://${location.host}/ws/term?runId=${runId}`);
 
     const sendResize = () => {
+      if (!el.clientWidth || !el.clientHeight) return; // hidden (e.g. Changes tab) / zero-size
       fit.fit();
       if (ws.readyState === ws.OPEN) ws.send("\x00" + JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
     };
