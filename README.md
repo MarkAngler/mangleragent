@@ -58,6 +58,16 @@ npm test           # unit/integration tests (vitest)
 npm run typecheck && npm run lint
 ```
 
+### Accessing the dev server from another machine
+
+The dev server binds to loopback and has no auth, so don't open it to the network. To view the UI from a second machine, tunnel it instead — from this machine, forward Vite's port (`5173`) over SSH to the machine you'll browse from:
+
+```bash
+ssh -N -R 5173:localhost:5173 user@other-machine
+```
+
+Then open `http://localhost:5173` on `other-machine`. The connection is outbound (works through WSL2 NAT), nothing is exposed on the network, and no config changes are needed. If the other machine can't host SSH, put both on a [Tailscale](https://tailscale.com) tailnet and browse `http://<this-machine-tailscale-ip>:5173`.
+
 ## Architecture
 
 Single npm package, TypeScript throughout.
