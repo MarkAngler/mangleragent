@@ -189,6 +189,18 @@ export const RunDiff = z.object({
 });
 export type RunDiff = z.infer<typeof RunDiff>;
 
+export const GitBranches = z.object({
+  available: z.boolean(),
+  current: z.string().nullable(), // null = detached HEAD / no commits
+  branches: z.array(z.string()),
+});
+export type GitBranches = z.infer<typeof GitBranches>;
+
+export const SwitchBranchInput = z.object({
+  branch: z.string().min(1).max(255).refine((b) => !b.startsWith("-"), "invalid branch name"),
+});
+export type SwitchBranchInput = z.infer<typeof SwitchBranchInput>;
+
 export const PermissionRequest = z.object({
   id: z.string(),
   runId: z.string(),
