@@ -115,6 +115,38 @@ export const UpdateTaskInput = z.object({
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInput>;
 
+// `cron` is validated for syntax server-side (cron-parser is a node dep and must not leak
+// into the client bundle), so here it is only a non-empty string.
+export const Schedule = z.object({
+  id: z.string(),
+  title: z.string(),
+  prompt: z.string(),
+  cron: z.string(),
+  conversationId: z.string().nullable(),
+  enabled: z.boolean(),
+  lastRunAt: z.number().nullable(),
+  nextRunAt: z.number().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Schedule = z.infer<typeof Schedule>;
+
+export const CreateScheduleInput = z.object({
+  title: z.string().min(1),
+  prompt: z.string().min(1),
+  cron: z.string().min(1),
+  enabled: z.boolean().optional(),
+});
+export type CreateScheduleInput = z.infer<typeof CreateScheduleInput>;
+
+export const UpdateScheduleInput = z.object({
+  title: z.string().min(1).optional(),
+  prompt: z.string().min(1).optional(),
+  cron: z.string().min(1).optional(),
+  enabled: z.boolean().optional(),
+});
+export type UpdateScheduleInput = z.infer<typeof UpdateScheduleInput>;
+
 export const AgentRunKind = z.enum(["pty", "orchestrated"]);
 export type AgentRunKind = z.infer<typeof AgentRunKind>;
 

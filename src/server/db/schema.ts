@@ -103,4 +103,18 @@ CREATE TABLE IF NOT EXISTS config (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS schedules (
+  id              TEXT PRIMARY KEY,
+  title           TEXT NOT NULL,
+  prompt          TEXT NOT NULL,
+  cron            TEXT NOT NULL,
+  conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+  enabled         INTEGER NOT NULL DEFAULT 1,
+  last_run_at     INTEGER,
+  next_run_at     INTEGER,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_schedules_due ON schedules(enabled, next_run_at);
 `;

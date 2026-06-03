@@ -12,6 +12,7 @@ export const ServerMsg = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run.event"), runId: z.string(), event: AgentEvent }),
   z.object({ type: z.literal("permission.request"), runId: z.string(), request: PermissionRequest }),
   z.object({ type: z.literal("permission.resolved"), runId: z.string(), requestId: z.string() }),
+  z.object({ type: z.literal("schedule.updated"), scheduleId: z.string() }),
 
   // Mangler streaming chat
   z.object({ type: z.literal("mangler.delta"), conversationId: z.string(), text: z.string() }),

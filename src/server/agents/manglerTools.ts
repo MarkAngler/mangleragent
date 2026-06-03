@@ -7,8 +7,10 @@ import { tasksRepo } from "../db/tasks";
 import { appendPosition } from "../../shared/board";
 import { broadcast } from "../realtime/hub";
 import { runsRepo } from "../db/runs";
+import { schedulesRepo } from "../db/schedules";
 import { readDef, MANGLER_SCOPE } from "../defs";
 import { startOrchestratedRun } from "./orchestrator";
+import { isValidCron, nextRun } from "../cron";
 import { Approver } from "../../shared/types";
 
 interface ErasedTool {
@@ -161,6 +163,40 @@ const defs: ErasedTool[] = [
       void startOrchestratedRun(run, prompt);
       broadcast({ type: "run.updated", runId: run.id });
       return { runId: run.id, status: "started", approver: run.approver };
+    },
+  }),
+  tool({
+    name: "create_schedule",
+    description:
+      "Schedule a recurring task. At each occurrence you (Mangler) are run with the given prompt in a dedicated conversation, with all your tools available — so the prompt can ask you to review the board, delegate tickets, etc. cron is a standard 5-field expression (e.g. '0 9 * * 1-5' = 9am on weekdays, '*/30 * * * *' = every 30 minutes).",
+    schema: z.object({
+      title: z.string(),
+      prompt: z.string(),
+      cron: z.string(),
+      enabled: z.boolean().optional(),
+    }),
+    handler: ({ title, prompt, cron, enabled }) => {
+      if (!isValidCron(cron)) return { error: "invalid cron expression" };
+      const en = enabled ?? true;
+      const schedule = schedulesRepo.create({ title, prompt, cron, enabled: en, nextRunAt: en ? nextRun(cron) : null });
+      broadcast({ type: "schedule.updated", scheduleId: schedule.id });
+      return schedule;
+    },
+  }),
+  tool({
+    name: "list_schedules",
+    description: "List all scheduled tasks with their cron expression, enabled state, and next run time.",
+    schema: z.object({}),
+    handler: () => schedulesRepo.list(),
+  }),
+  tool({
+    name: "cancel_schedule",
+    description: "Delete a scheduled task by id.",
+    schema: z.object({ scheduleId: z.string() }),
+    handler: ({ scheduleId }) => {
+      if (!schedulesRepo.remove(scheduleId)) return { error: "schedule not found" };
+      broadcast({ type: "schedule.updated", scheduleId });
+      return { ok: true };
     },
   }),
   tool({

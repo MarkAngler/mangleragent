@@ -5,6 +5,7 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { BoardPage } from "./pages/BoardPage";
 import { ActiveAgentsPage } from "./pages/ActiveAgentsPage";
 import { NotesPage } from "./pages/NotesPage";
+import { SchedulesPage } from "./pages/SchedulesPage";
 import { DefinitionsPage } from "./pages/DefinitionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -17,6 +18,7 @@ export function App() {
         <Route path="/projects/:id" element={<BoardPage />} />
         <Route path="/agents" element={<ActiveAgentsPage />} />
         <Route path="/notes" element={<NotesPage />} />
+        <Route path="/schedules" element={<SchedulesPage />} />
         <Route path="/definitions" element={<DefinitionsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>

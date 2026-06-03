@@ -18,7 +18,9 @@ import { runsRouter } from "./api/runs";
 import { defsRouter } from "./api/defs";
 import { settingsRouter } from "./api/settings";
 import { fsRouter } from "./api/fs";
+import { schedulesRouter } from "./api/schedules";
 import { installPtyTerminals } from "./agents/pty";
+import { startScheduler } from "./scheduler";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.resolve(here, "../client");
@@ -40,6 +42,7 @@ function main(): void {
   app.use("/api", defsRouter);
   app.use("/api", settingsRouter);
   app.use("/api", fsRouter);
+  app.use("/api", schedulesRouter);
 
   const indexHtml = path.join(clientDir, "index.html");
   const serveClient = !env.isDev && fs.existsSync(indexHtml);
@@ -51,6 +54,7 @@ function main(): void {
   const server = createServer(app);
   createWsHub(server);
   installPtyTerminals();
+  startScheduler();
 
   server.listen(env.port, "127.0.0.1", () => {
     const url = `http://127.0.0.1:${env.port}`;
