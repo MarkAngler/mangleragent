@@ -9,7 +9,6 @@ export const ServerMsg = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hello"), serverTime: z.string() }),
   z.object({ type: z.literal("board.updated"), projectId: z.string() }),
   z.object({ type: z.literal("run.updated"), runId: z.string() }),
-  z.object({ type: z.literal("run.waiting"), runId: z.string(), waiting: z.boolean() }),
   z.object({ type: z.literal("run.event"), runId: z.string(), event: AgentEvent }),
   z.object({ type: z.literal("permission.request"), runId: z.string(), request: PermissionRequest }),
   z.object({ type: z.literal("permission.resolved"), runId: z.string(), requestId: z.string() }),

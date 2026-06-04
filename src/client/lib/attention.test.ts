@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import type { AgentRun, AgentRunStatus, AgentRunKind } from "../../shared/types";
+import type { AgentRun, AgentRunStatus } from "../../shared/types";
 import { needsInputRuns, diffCompletions, snapshotOf } from "./attention";
 
-function run(id: string, status: AgentRunStatus, kind: AgentRunKind = "orchestrated"): AgentRun {
+function run(id: string, status: AgentRunStatus): AgentRun {
   return {
     id,
     projectId: null,
     ticketId: null,
-    kind,
+    kind: "orchestrated",
     title: id,
     status,
     approver: "human",
@@ -25,18 +25,12 @@ function run(id: string, status: AgentRunStatus, kind: AgentRunKind = "orchestra
 describe("needsInputRuns", () => {
   it("counts orchestrated runs awaiting approval", () => {
     const runs = [run("a", "awaiting_approval"), run("b", "running")];
-    expect(needsInputRuns(runs, new Set()).map((r) => r.id)).toEqual(["a"]);
-  });
-
-  it("counts a pty run only when it is in the waiting set", () => {
-    const runs = [run("t", "running", "pty")];
-    expect(needsInputRuns(runs, new Set()).map((r) => r.id)).toEqual([]);
-    expect(needsInputRuns(runs, new Set(["t"])).map((r) => r.id)).toEqual(["t"]);
+    expect(needsInputRuns(runs).map((r) => r.id)).toEqual(["a"]);
   });
 
   it("excludes terminal runs", () => {
     const runs = [run("a", "done"), run("b", "failed"), run("c", "stopped")];
-    expect(needsInputRuns(runs, new Set(["a", "b", "c"]))).toEqual([]);
+    expect(needsInputRuns(runs)).toEqual([]);
   });
 });
 

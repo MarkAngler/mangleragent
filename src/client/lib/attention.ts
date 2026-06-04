@@ -9,11 +9,9 @@ const isTerminal = (status: AgentRunStatus) => TERMINAL_STATUSES.includes(status
 const isCompletion = (status: AgentRunStatus): status is "done" | "failed" =>
   COMPLETION_STATUSES.includes(status);
 
-/** Runs that currently need the user's input: orchestrated plan approvals and idle PTY prompts. */
-export function needsInputRuns(runs: AgentRun[], ptyWaiting: ReadonlySet<string>): AgentRun[] {
-  return runs.filter((run) =>
-    run.status === "awaiting_approval" || (run.kind === "pty" && ptyWaiting.has(run.id)),
-  );
+/** Runs that currently need the user's input: orchestrated plan approvals. */
+export function needsInputRuns(runs: AgentRun[]): AgentRun[] {
+  return runs.filter((run) => run.status === "awaiting_approval");
 }
 
 /** Build a status snapshot keyed by run id, used as the baseline for transition detection. */

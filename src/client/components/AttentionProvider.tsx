@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { get } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
@@ -14,9 +14,9 @@ export function useAttention(): { needsInputCount: number } {
 }
 
 /**
- * App-global "attention" layer: from the live runs list (plus the PTY waiting signal),
- * it tracks how many runs currently need the user's input and fires one-shot
- * toasts + chimes when a run newly needs input or has just completed.
+ * App-global "attention" layer: from the live runs list it tracks how many runs
+ * currently need the user's input and fires one-shot toasts + chimes when a run
+ * newly needs input or has just completed.
  */
 export function AttentionProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
@@ -25,7 +25,6 @@ export function AttentionProvider({ children }: { children: ReactNode }) {
     queryKey: ["runs"],
     queryFn: () => get<AgentRun[]>("/runs"),
   });
-  const [waiting, setWaiting] = useState<ReadonlySet<string>>(new Set());
 
   const prevSnapshot = useRef<AttentionSnapshot | null>(null);
   const prevNeedsInput = useRef<Set<string>>(new Set());
@@ -34,17 +33,10 @@ export function AttentionProvider({ children }: { children: ReactNode }) {
   useWsMessage((msg) => {
     if (msg.type === "run.updated") {
       void qc.invalidateQueries({ queryKey: ["runs"] });
-    } else if (msg.type === "run.waiting") {
-      setWaiting((current) => {
-        const next = new Set(current);
-        if (msg.waiting) next.add(msg.runId);
-        else next.delete(msg.runId);
-        return next;
-      });
     }
   });
 
-  const needsInput = useMemo(() => needsInputRuns(runs, waiting), [runs, waiting]);
+  const needsInput = useMemo(() => needsInputRuns(runs), [runs]);
   const needsInputCount = needsInput.length;
 
   useEffect(() => {

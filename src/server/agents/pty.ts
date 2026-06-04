@@ -11,14 +11,6 @@ import { broadcast, registerUpgradeHandler } from "../realtime/hub";
 
 const CLAUDE_BIN = process.env.MANGLED_CLAUDE_BIN ?? "claude";
 const SCROLLBACK_ROWS = 1000;
-// The claude TUI streams spinner/token frames while it works, so a quiet stretch
-// means it has reached its prompt and is waiting for the user. 4s avoids flicker
-// between redraw frames while staying responsive.
-const IDLE_MS = 4000;
-// Even at its prompt the TUI emits lone redraw frames (cursor blink, input box). Those must
-// not count as "claude resumed activity", or `waiting` would flip off and back on and re-toast
-// every idle cycle. Only sustained output — a second frame within this window — clears waiting.
-const ACTIVE_GRACE_MS = 750;
 
 interface PtySession {
   term: IPty;
@@ -28,10 +20,6 @@ interface PtySession {
   serializer: SerializeAddon;
   sockets: Set<WebSocket>;
   killing: boolean;
-  lastDataAt: number;
-  waiting: boolean;
-  idleTimer: ReturnType<typeof setInterval> | null;
-  graceTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const sessions = new Map<string, PtySession>();
@@ -75,45 +63,17 @@ export function startPtySession(runId: string, cwd: string, opts?: SpawnOpts): v
     serializer,
     sockets: new Set(),
     killing: false,
-    lastDataAt: Date.now(),
-    waiting: false,
-    idleTimer: null,
-    graceTimer: null,
   };
   sessions.set(runId, session);
   runsRepo.setStatus(runId, "running");
   broadcast({ type: "run.updated", runId });
 
   term.onData((data) => {
-    const armedAt = Date.now();
-    session.lastDataAt = armedAt;
     session.emulator.write(data);
     for (const ws of session.sockets) if (ws.readyState === ws.OPEN) ws.send(data);
-    if (session.waiting && !session.graceTimer) {
-      session.graceTimer = setTimeout(() => {
-        session.graceTimer = null;
-        // A later frame arrived means output is genuinely streaming — claude resumed work.
-        // A lone redraw frame leaves lastDataAt at armedAt, so waiting stays set and no toast repeats.
-        if (session.waiting && session.lastDataAt > armedAt) {
-          session.waiting = false;
-          broadcast({ type: "run.waiting", runId, waiting: false });
-        }
-      }, ACTIVE_GRACE_MS);
-    }
   });
 
-  session.idleTimer = setInterval(() => {
-    if (session.killing || session.waiting) return;
-    if (Date.now() - session.lastDataAt > IDLE_MS) {
-      session.waiting = true;
-      broadcast({ type: "run.waiting", runId, waiting: true });
-    }
-  }, 1000);
-
   term.onExit(() => {
-    if (session.idleTimer) clearInterval(session.idleTimer);
-    if (session.graceTimer) clearTimeout(session.graceTimer);
-    broadcast({ type: "run.waiting", runId, waiting: false });
     runsRepo.setStatus(runId, session.killing ? "stopped" : "done");
     broadcast({ type: "run.updated", runId });
     for (const ws of session.sockets) {
@@ -132,8 +92,6 @@ export function stopPtySession(runId: string): boolean {
   const session = sessions.get(runId);
   if (!session) return false;
   session.killing = true;
-  if (session.idleTimer) clearInterval(session.idleTimer);
-  if (session.graceTimer) clearTimeout(session.graceTimer);
   session.term.kill();
   return true;
 }
