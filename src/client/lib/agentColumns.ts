@@ -11,11 +11,19 @@ export interface RunColumn {
 export const pinKey = (projectId: string | null) => projectId ?? NO_PROJECT_KEY;
 
 /**
- * Groups newest-first runs into one column per project. Column order follows
- * each project's most-recent run; the effective run is the pinned run when it
- * still exists, otherwise the most recent.
+ * Builds the columns for the agents view from newest-first runs.
+ *
+ * When the total run count is at most `maxVisible`, each run gets its own column
+ * (expanded) so concurrent sessions — including several from the same project —
+ * are visible side by side. Above that threshold, runs collapse to one column
+ * per project; the effective run is the pinned run when it still exists,
+ * otherwise the most recent, switchable via the picker.
  */
-export function buildColumns(runs: AgentRun[], pinned: Record<string, string>): RunColumn[] {
+export function buildColumns(runs: AgentRun[], pinned: Record<string, string>, maxVisible: number): RunColumn[] {
+  if (runs.length <= maxVisible) {
+    return runs.map((run) => ({ projectId: run.projectId, runs: [run], effectiveRunId: run.id }));
+  }
+
   const groups = new Map<string, AgentRun[]>();
   for (const run of runs) {
     const key = pinKey(run.projectId);

@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
-import type { Project } from "../../shared/types";
+import type { AgentRun, Project } from "../../shared/types";
 import { Button, Card, Drawer, EmptyState, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { FolderPicker } from "../components/FolderPicker";
 
 export function ProjectsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState("");
   const [description, setDescription] = useState("");
@@ -51,6 +52,12 @@ export function ProjectsPage() {
     onError: (err) => alert((err as Error).message),
   });
 
+  const openTerminal = useMutation({
+    mutationFn: (id: string) => post<AgentRun>("/runs/pty", { projectId: id, ticketId: null }),
+    onSuccess: (run) => navigate(`/agents?run=${run.id}`),
+    onError: (err) => alert((err as Error).message),
+  });
+
   return (
     <div className="mx-auto w-full max-w-5xl">
       <PageHeader
@@ -80,6 +87,9 @@ export function ProjectsPage() {
                   <p className="mt-1 truncate font-mono text-[12px] text-muted">{project.path}</p>
                 </Link>
                 <div className="flex shrink-0 items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button onClick={() => openTerminal.mutate(project.id)} disabled={openTerminal.isPending}>
+                    <Mono className="hover:text-accent">terminal</Mono>
+                  </button>
                   <button onClick={() => openVscode.mutate(project.id)} disabled={openVscode.isPending}>
                     <Mono className="hover:text-accent">vscode</Mono>
                   </button>

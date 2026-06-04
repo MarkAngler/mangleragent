@@ -12,6 +12,7 @@ type View = "list" | "columns";
 export function ActiveAgentsPage() {
   const qc = useQueryClient();
   const [view, setView] = useLocalStorage<View>("agents.view", "list");
+  const [maxVisible, setMaxVisible] = useLocalStorage<number>("agents.maxVisible", 6);
 
   const { data: runs = [] } = useQuery({ queryKey: ["runs"], queryFn: () => get<AgentRun[]>("/runs") });
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => get<Project[]>("/projects") });
@@ -28,18 +29,40 @@ export function ActiveAgentsPage() {
         description="Every interactive terminal session and orchestrated agent run, live."
         compact
         actions={
-          <div className="flex items-center rounded-md border border-hairline-strong bg-surface p-0.5 text-[12px]">
-            {(["list", "columns"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`rounded px-2.5 py-1 font-medium capitalize transition-colors ${
-                  view === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"
-                }`}
+          <div className="flex items-center gap-2">
+            {view === "columns" && (
+              <div
+                className="flex items-center rounded-md border border-hairline-strong bg-surface p-0.5 text-[12px]"
+                title="Show each session as its own column up to this many; above it, collapse same-project sessions."
               >
-                {v}
-              </button>
-            ))}
+                <button
+                  onClick={() => setMaxVisible(Math.max(1, maxVisible - 1))}
+                  className="rounded px-2 py-1 font-medium text-muted hover:text-ink"
+                >
+                  −
+                </button>
+                <span className="min-w-[1.5rem] text-center font-medium tabular-nums text-ink">{maxVisible}</span>
+                <button
+                  onClick={() => setMaxVisible(maxVisible + 1)}
+                  className="rounded px-2 py-1 font-medium text-muted hover:text-ink"
+                >
+                  +
+                </button>
+              </div>
+            )}
+            <div className="flex items-center rounded-md border border-hairline-strong bg-surface p-0.5 text-[12px]">
+              {(["list", "columns"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`rounded px-2.5 py-1 font-medium capitalize transition-colors ${
+                    view === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
           </div>
         }
       />
@@ -47,7 +70,7 @@ export function ActiveAgentsPage() {
       {runs.length === 0 ? (
         <EmptyState title="No agents yet" hint="Open a terminal from a project board, or delegate a ticket to Mangler." />
       ) : view === "columns" ? (
-        <RunColumns runs={runs} projects={projects} />
+        <RunColumns runs={runs} projects={projects} maxVisible={maxVisible} />
       ) : (
         <RunListDetail runs={runs} projects={projects} />
       )}

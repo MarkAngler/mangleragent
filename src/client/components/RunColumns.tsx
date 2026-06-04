@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { post } from "../lib/api";
+import { del, post } from "../lib/api";
 import { buildColumns, pinKey } from "../lib/agentColumns";
 import { STATUS_TONE, isActiveRun } from "../lib/run";
 import { useLocalStorage } from "../lib/useLocalStorage";
@@ -9,7 +9,7 @@ import { Button, Mono, StatusDot } from "./ui";
 import { RunBody } from "./RunBody";
 import { RunPickerModal } from "./RunPickerModal";
 
-export function RunColumns({ runs, projects }: { runs: AgentRun[]; projects: Project[] }) {
+export function RunColumns({ runs, projects, maxVisible }: { runs: AgentRun[]; projects: Project[]; maxVisible: number }) {
   const qc = useQueryClient();
   const [pinned, setPinned] = useLocalStorage<Record<string, string>>("agents.pinned", {});
   const [pickerKey, setPickerKey] = useState<string | null>(null);
@@ -18,8 +18,12 @@ export function RunColumns({ runs, projects }: { runs: AgentRun[]; projects: Pro
     mutationFn: (id: string) => post(`/runs/${id}/stop`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["runs"] }),
   });
+  const remove = useMutation({
+    mutationFn: (id: string) => del(`/runs/${id}`),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["runs"] }),
+  });
 
-  const columns = buildColumns(runs, pinned);
+  const columns = buildColumns(runs, pinned, maxVisible);
   const projectName = (id: string | null) => projects.find((p) => p.id === id)?.name ?? "No project";
 
   const pin = (key: string, runId: string) => setPinned({ ...pinned, [key]: runId });
@@ -33,12 +37,15 @@ export function RunColumns({ runs, projects }: { runs: AgentRun[]; projects: Pro
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4">
+      <div
+        className="grid min-h-0 flex-1 gap-3 overflow-y-auto pb-4"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(20rem, 1fr))", gridAutoRows: "minmax(20rem, 1fr)" }}
+      >
         {columns.map((column) => {
           const key = pinKey(column.projectId);
           const run = column.runs.find((r) => r.id === column.effectiveRunId) ?? column.runs[0];
           return (
-            <section key={key} className="flex min-h-0 min-w-[24rem] flex-1 flex-col rounded-lg border border-hairline bg-paper">
+            <section key={run.id} className="flex min-h-0 min-w-0 flex-col rounded-lg border border-hairline bg-paper">
               <div className="flex items-center justify-between gap-2 border-b border-hairline px-3 py-2.5">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-ink">{projectName(column.projectId)}</div>
@@ -50,8 +57,13 @@ export function RunColumns({ runs, projects }: { runs: AgentRun[]; projects: Pro
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {isActiveRun(run) && <Button onClick={() => stop.mutate(run.id)}>Stop</Button>}
-                  <button onClick={() => setPickerKey(key)}>
-                    <Mono className="hover:text-accent">change{column.runs.length > 1 ? ` (${column.runs.length})` : ""}</Mono>
+                  {column.runs.length > 1 && (
+                    <button onClick={() => setPickerKey(key)}>
+                      <Mono className="hover:text-accent">change ({column.runs.length})</Mono>
+                    </button>
+                  )}
+                  <button onClick={() => { resetPin(key); remove.mutate(run.id); }}>
+                    <Mono className="hover:text-bad">remove</Mono>
                   </button>
                 </div>
               </div>
