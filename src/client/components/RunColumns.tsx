@@ -38,7 +38,7 @@ export function RunColumns({ runs, projects, maxVisible }: { runs: AgentRun[]; p
   return (
     <>
       <div
-        className="grid min-h-0 flex-1 gap-3 overflow-y-auto pb-4"
+        className="grid min-h-0 flex-1 gap-2 overflow-y-auto pb-2"
         style={{ gridTemplateColumns: "repeat(auto-fit, minmax(20rem, 1fr))", gridAutoRows: "minmax(20rem, 1fr)" }}
       >
         {columns.map((column) => {
@@ -46,14 +46,12 @@ export function RunColumns({ runs, projects, maxVisible }: { runs: AgentRun[]; p
           const run = column.runs.find((r) => r.id === column.effectiveRunId) ?? column.runs[0];
           return (
             <section key={run.id} className="flex min-h-0 min-w-0 flex-col rounded-lg border border-hairline bg-paper">
-              <div className="flex items-center justify-between gap-2 border-b border-hairline px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-ink">{projectName(column.projectId)}</div>
-                  <div className="mt-0.5 flex items-center gap-1.5">
-                    <StatusDot tone={STATUS_TONE[run.status]} pulse={isActiveRun(run)} />
-                    <span className="truncate text-[12px] text-muted">{run.title}</span>
-                    <Mono>· {run.kind === "pty" ? "terminal" : "agent"}</Mono>
-                  </div>
+              <div className="flex items-center justify-between gap-2 border-b border-hairline px-3 py-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <StatusDot tone={STATUS_TONE[run.status]} pulse={isActiveRun(run)} />
+                  <span className="shrink-0 text-sm font-medium text-ink">{projectName(column.projectId)}</span>
+                  <span className="truncate text-[12px] text-muted">{run.title}</span>
+                  <Mono className="shrink-0">· {run.kind === "pty" ? "terminal" : "agent"}</Mono>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {isActiveRun(run) && <Button onClick={() => stop.mutate(run.id)}>Stop</Button>}
@@ -67,7 +65,7 @@ export function RunColumns({ runs, projects, maxVisible }: { runs: AgentRun[]; p
                   </button>
                 </div>
               </div>
-              <div className="min-h-0 flex-1 p-2">
+              <div className="min-h-0 flex-1 p-1">
                 <RunBody key={run.id} run={run} />
               </div>
             </section>
