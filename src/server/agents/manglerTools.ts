@@ -9,6 +9,7 @@ import { broadcast } from "../realtime/hub";
 import { runsRepo } from "../db/runs";
 import { schedulesRepo } from "../db/schedules";
 import { readDef, MANGLER_SCOPE } from "../defs";
+import { commit, push } from "../git";
 import { startOrchestratedRun } from "./orchestrator";
 import { isValidCron, nextRun } from "../cron";
 import { Approver } from "../../shared/types";
@@ -220,6 +221,26 @@ const defs: ErasedTool[] = [
       "Run a shell command (CLI tool) and return { exitCode, stdout, stderr }. Pass projectId to run inside that project's folder; otherwise it runs in the default CLI working directory from Settings. Unless the user has enabled auto-run, each command must be approved before it executes — a denied command returns { denied: true }.",
     schema: z.object({ command: z.string().min(1), projectId: z.string().optional() }),
     handler: (input, ctx) => runManglerCommand(input, ctx),
+  }),
+  tool({
+    name: "git_commit",
+    description: "Stage all changes in a project's folder and commit them with the given message. Returns the new commit's short hash.",
+    schema: z.object({ projectId: z.string(), message: z.string().min(1) }),
+    handler: ({ projectId, message }) => {
+      const project = projectsRepo.get(projectId);
+      if (!project) return { error: "project not found" };
+      return { hash: commit(project.path, message) };
+    },
+  }),
+  tool({
+    name: "git_push",
+    description: "Push a project's current branch to its remote, setting the upstream on the first push. Returns the upstream it pushed to.",
+    schema: z.object({ projectId: z.string() }),
+    handler: ({ projectId }) => {
+      const project = projectsRepo.get(projectId);
+      if (!project) return { error: "project not found" };
+      return { output: push(project.path) };
+    },
   }),
 ];
 

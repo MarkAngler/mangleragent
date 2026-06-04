@@ -3,22 +3,24 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "./env";
-import type { DiffFileStatus, FileDiff, GitBranches, RunDiff } from "../shared/types";
+import type { DiffFileStatus, FileDiff, GitBranches, GitStatus, RunDiff } from "../shared/types";
 
 const IDX_DIR = path.join(env.dataDir, "diff-idx");
 const GIT_TIMEOUT = 15_000;
+// Pushing talks to a remote, which can outlast the default local-op timeout.
+const PUSH_TIMEOUT = 60_000;
 const MAX_BUFFER = 64 * 1024 * 1024;
 const MAX_PATCH_BYTES = 2 * 1024 * 1024;
 // git's well-known empty tree object, used as the diff base for a repo with no commits.
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
-function git(cwd: string, args: string[], indexFile?: string): string {
+function git(cwd: string, args: string[], opts: { indexFile?: string; timeoutMs?: number } = {}): string {
   return execFileSync("git", ["-C", cwd, ...args], {
     encoding: "utf8",
-    timeout: GIT_TIMEOUT,
+    timeout: opts.timeoutMs ?? GIT_TIMEOUT,
     maxBuffer: MAX_BUFFER,
     stdio: ["ignore", "pipe", "pipe"],
-    env: indexFile ? { ...process.env, GIT_INDEX_FILE: indexFile } : process.env,
+    env: opts.indexFile ? { ...process.env, GIT_INDEX_FILE: opts.indexFile } : process.env,
   });
 }
 
@@ -52,12 +54,12 @@ export function snapshotTree(cwd: string): string | null {
   const idx = path.join(IDX_DIR, `${randomUUID()}.idx`);
   try {
     try {
-      git(cwd, ["read-tree", "HEAD"], idx);
+      git(cwd, ["read-tree", "HEAD"], { indexFile: idx });
     } catch {
       // Repo with no commits: there is no HEAD to seed from. add -A still works.
     }
-    git(cwd, ["add", "-A"], idx);
-    return git(cwd, ["write-tree"], idx).trim();
+    git(cwd, ["add", "-A"], { indexFile: idx });
+    return git(cwd, ["write-tree"], { indexFile: idx }).trim();
   } catch {
     return null;
   } finally {
@@ -211,4 +213,58 @@ export function listBranches(cwd: string): GitBranches {
 export function switchBranch(cwd: string, branch: string, create: boolean): GitBranches {
   git(cwd, create ? ["checkout", "-b", branch] : ["checkout", branch]);
   return listBranches(cwd);
+}
+
+function upstreamRef(cwd: string): string | null {
+  try {
+    return git(cwd, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]).trim() || null;
+  } catch {
+    return null; // no upstream configured for the current branch
+  }
+}
+
+/**
+ * Stage every change (`add -A`) and commit it with `message`. Returns the new
+ * commit's short hash. Throws on git failure (e.g. a clean tree's "nothing to
+ * commit") so callers can surface git's stderr, matching `switchBranch`.
+ */
+export function commit(cwd: string, message: string): string {
+  git(cwd, ["add", "-A"]);
+  git(cwd, ["commit", "-m", message]);
+  return git(cwd, ["rev-parse", "--short", "HEAD"]).trim();
+}
+
+/**
+ * Push the current branch, setting its upstream on the first push when none is
+ * configured (`push -u origin HEAD`). Returns the upstream it pushed to (e.g.
+ * "origin/main") for user feedback — git writes its progress to stderr, which
+ * `git()` discards. Throws on git failure so callers can surface the stderr.
+ */
+export function push(cwd: string): string {
+  const args = upstreamRef(cwd) ? ["push"] : ["push", "-u", "origin", "HEAD"];
+  git(cwd, args, { timeoutMs: PUSH_TIMEOUT });
+  return upstreamRef(cwd) ?? "remote";
+}
+
+/**
+ * The push-relevant state of `cwd`: current branch, whether its upstream is set,
+ * and how many commits it is ahead of that upstream (0 when unset). Read-only.
+ * Degrades to { available:false } for non-git/missing directories.
+ */
+export function gitStatus(cwd: string): GitStatus {
+  const unavailable: GitStatus = { available: false, branch: null, ahead: 0, hasUpstream: false };
+  if (!fs.existsSync(cwd) || !isGitRepo(cwd)) return unavailable;
+  try {
+    let branch: string | null = null;
+    try {
+      branch = git(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"]).trim() || null;
+    } catch {
+      branch = null; // detached HEAD
+    }
+    const upstream = upstreamRef(cwd);
+    const ahead = upstream ? Number(git(cwd, ["rev-list", "--count", "@{u}..HEAD"]).trim()) || 0 : 0;
+    return { available: true, branch, ahead, hasUpstream: Boolean(upstream) };
+  } catch {
+    return unavailable;
+  }
 }

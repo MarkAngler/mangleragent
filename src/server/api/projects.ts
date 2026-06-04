@@ -3,8 +3,8 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { projectsRepo } from "../db/projects";
-import { listBranches, switchBranch } from "../git";
-import { CreateProjectInput, SwitchBranchInput, UpdateProjectInput } from "../../shared/types";
+import { commit, gitStatus, listBranches, push, runDiff, switchBranch } from "../git";
+import { CommitInput, CreateProjectInput, SwitchBranchInput, UpdateProjectInput } from "../../shared/types";
 
 const CODE_BIN = process.env.MANGLED_CODE_BIN ?? "code";
 
@@ -64,6 +64,57 @@ projectsRouter.post("/projects/:id/branches/switch", (req, res) => {
   } catch (err) {
     const stderr = (err as { stderr?: Buffer | string }).stderr?.toString().trim();
     res.status(409).json({ error: stderr || "git checkout failed" });
+  }
+});
+
+projectsRouter.get("/projects/:id/diff", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  res.json(runDiff(project.path));
+});
+
+projectsRouter.get("/projects/:id/git-status", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  res.json(gitStatus(project.path));
+});
+
+projectsRouter.post("/projects/:id/commit", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  const parsed = CommitInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "invalid input" });
+    return;
+  }
+  try {
+    res.json({ hash: commit(project.path, parsed.data.message) });
+  } catch (err) {
+    const stderr = (err as { stderr?: Buffer | string }).stderr?.toString().trim();
+    res.status(409).json({ error: stderr || "git commit failed" });
+  }
+});
+
+projectsRouter.post("/projects/:id/push", (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  try {
+    res.json({ output: push(project.path) });
+  } catch (err) {
+    const stderr = (err as { stderr?: Buffer | string }).stderr?.toString().trim();
+    res.status(409).json({ error: stderr || "git push failed" });
   }
 });
 

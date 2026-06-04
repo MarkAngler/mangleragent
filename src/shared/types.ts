@@ -234,6 +234,19 @@ export const SwitchBranchInput = z.object({
 });
 export type SwitchBranchInput = z.infer<typeof SwitchBranchInput>;
 
+export const GitStatus = z.object({
+  available: z.boolean(),
+  branch: z.string().nullable(), // null = detached HEAD / no commits
+  ahead: z.number(), // commits on HEAD not yet on its upstream (0 when no upstream)
+  hasUpstream: z.boolean(),
+});
+export type GitStatus = z.infer<typeof GitStatus>;
+
+export const CommitInput = z.object({
+  message: z.string().min(1).max(2000),
+});
+export type CommitInput = z.infer<typeof CommitInput>;
+
 export const PermissionRequest = z.object({
   id: z.string(),
   runId: z.string(),

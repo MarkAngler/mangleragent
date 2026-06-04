@@ -59,14 +59,22 @@ export function DiffViewer({ run }: { run: AgentRun }) {
             <EmptyState title="No file changes yet" hint="This run hasn't modified any files in the project working tree." />
           </div>
         ) : (
-          <div className="divide-y divide-hairline">
-            {files.map((f) => (
-              <FileSection key={`${f.oldPath ?? ""}:${f.path}`} file={f} />
-            ))}
-            {data.truncated && <p className="px-5 py-3 text-[12px] text-warn">Diff truncated — too large to display in full.</p>}
-          </div>
+          <DiffFileList diff={data} />
         )}
       </div>
+    </div>
+  );
+}
+
+// The list of changed files for a diff, each expandable to its patch. Shared by
+// the run DiffViewer and the board CommitPanel; callers handle empty/loading.
+export function DiffFileList({ diff }: { diff: RunDiff }) {
+  return (
+    <div className="divide-y divide-hairline">
+      {diff.files.map((f) => (
+        <FileSection key={`${f.oldPath ?? ""}:${f.path}`} file={f} />
+      ))}
+      {diff.truncated && <p className="px-5 py-3 text-[12px] text-warn">Diff truncated — too large to display in full.</p>}
     </div>
   );
 }

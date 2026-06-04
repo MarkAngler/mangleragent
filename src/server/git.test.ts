@@ -8,7 +8,7 @@ import fs from "node:fs";
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "ma-git-data-"));
 process.env.MANGLED_DATA_DIR = dataDir;
 
-const { isGitRepo, snapshotTree, runDiff, listBranches, switchBranch } = await import("./git");
+const { isGitRepo, snapshotTree, runDiff, listBranches, switchBranch, commit: gitCommit, push: gitPush, gitStatus } = await import("./git");
 
 function git(repo: string, ...args: string[]): string {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" });
@@ -162,5 +162,83 @@ describe("listBranches / switchBranch", () => {
     switchBranch(repo, base, false);
 
     expect(() => switchBranch(repo, "dup", true)).toThrow();
+  });
+});
+
+function makeBareRemote(): string {
+  const remote = fs.mkdtempSync(path.join(os.tmpdir(), "ma-git-remote-"));
+  git(remote, "init", "--bare", "-q");
+  return remote;
+}
+
+describe("commit", () => {
+  it("stages all changes and commits, returning the new short hash", () => {
+    const repo = makeRepo();
+    write(repo, "a.txt", "a\n");
+    write(repo, "b.txt", "b\n");
+
+    const hash = gitCommit(repo, "feat: add a and b");
+    expect(hash).toMatch(/^[0-9a-f]{7,}$/);
+    expect(git(repo, "rev-parse", "--short", "HEAD").trim()).toBe(hash);
+    expect(git(repo, "log", "-1", "--pretty=%s").trim()).toBe("feat: add a and b");
+    expect(git(repo, "status", "--porcelain").trim()).toBe("");
+  });
+
+  it("throws when there is nothing to commit", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    expect(() => gitCommit(repo, "noop")).toThrow();
+  });
+});
+
+describe("gitStatus", () => {
+  it("reports the branch with no upstream for a fresh local repo", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    const branch = git(repo, "rev-parse", "--abbrev-ref", "HEAD").trim();
+
+    expect(gitStatus(repo)).toEqual({ available: true, branch, ahead: 0, hasUpstream: false });
+  });
+
+  it("tracks the ahead count once an upstream is set", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    git(repo, "remote", "add", "origin", makeBareRemote());
+    gitPush(repo);
+
+    expect(gitStatus(repo)).toMatchObject({ available: true, hasUpstream: true, ahead: 0 });
+
+    commit(repo, "b.txt", "b\n");
+    expect(gitStatus(repo).ahead).toBe(1);
+  });
+
+  it("returns unavailable for non-git directories", () => {
+    const plain = fs.mkdtempSync(path.join(os.tmpdir(), "ma-plain-status-"));
+    expect(gitStatus(plain)).toEqual({ available: false, branch: null, ahead: 0, hasUpstream: false });
+  });
+});
+
+describe("push", () => {
+  it("sets the upstream on first push and lands the commit on the remote", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    const branch = git(repo, "rev-parse", "--abbrev-ref", "HEAD").trim();
+    const remote = makeBareRemote();
+    git(repo, "remote", "add", "origin", remote);
+
+    expect(gitPush(repo)).toBe(`origin/${branch}`);
+    expect(git(remote, "rev-parse", branch).trim()).toBe(git(repo, "rev-parse", "HEAD").trim());
+    expect(gitStatus(repo)).toMatchObject({ hasUpstream: true, ahead: 0 });
+  });
+
+  it("is a no-op when the branch is already up to date", () => {
+    const repo = makeRepo();
+    commit(repo, "a.txt", "a\n");
+    const branch = git(repo, "rev-parse", "--abbrev-ref", "HEAD").trim();
+    git(repo, "remote", "add", "origin", makeBareRemote());
+    gitPush(repo);
+
+    expect(gitPush(repo)).toBe(`origin/${branch}`);
+    expect(gitStatus(repo).ahead).toBe(0);
   });
 });

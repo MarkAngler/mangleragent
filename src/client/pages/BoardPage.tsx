@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import { appendPosition, insertPosition } from "../../shared/board";
-import type { AgentRun, Column, GitBranches, Project, Ticket } from "../../shared/types";
-import { Button, Drawer, Input, Mono, PageHeader, Textarea } from "../components/ui";
+import type { AgentRun, Column, GitBranches, GitStatus, Project, RunDiff, Ticket } from "../../shared/types";
+import { Button, Drawer, EmptyState, Input, Modal, Mono, PageHeader, Textarea } from "../components/ui";
+import { DiffFileList } from "../components/DiffViewer";
+import { useToast } from "../components/Toast";
 
 // Colons are forbidden in git branch names, so this never collides with a real branch.
 const NEW_BRANCH = "::new::";
@@ -20,6 +22,7 @@ export function BoardPage() {
   const [addingColumn, setAddingColumn] = useState<string | null>(null);
   const [addTitle, setAddTitle] = useState("");
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
+  const [commitOpen, setCommitOpen] = useState(false);
 
   const { data: project } = useQuery({ queryKey: ["project", projectId], queryFn: () => get<Project>(`/projects/${projectId}`) });
   const { data: tickets = [] } = useQuery({ queryKey: ticketsKey, queryFn: () => get<Ticket[]>(`/tickets?projectId=${projectId}`) });
@@ -109,6 +112,7 @@ export function BoardPage() {
                 <Mono className="hover:text-accent">← all projects</Mono>
               </Link>
               <BranchSwitcher projectId={projectId} />
+              <Button onClick={() => setCommitOpen(true)}>Commit…</Button>
               <Button onClick={() => openVscode.mutate()} disabled={openVscode.isPending}>Open in VS Code</Button>
               <Button onClick={() => openTerminal.mutate({})}>Open terminal</Button>
             </div>
@@ -199,6 +203,10 @@ export function BoardPage() {
           })}
         </div>
       </div>
+
+      <Modal open={commitOpen} onClose={() => setCommitOpen(false)} title="Commit & push">
+        <CommitPanel projectId={projectId} />
+      </Modal>
 
       <Drawer open={Boolean(openTicket)} onClose={() => setOpenTicketId(null)} title={<Mono>ticket</Mono>}>
         {openTicket && project && (
@@ -301,6 +309,82 @@ function BranchSwitcher({ projectId }: { projectId: string }) {
       ))}
       <option value={NEW_BRANCH}>+ New branch…</option>
     </select>
+  );
+}
+
+function CommitPanel({ projectId }: { projectId: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [message, setMessage] = useState("");
+
+  const diffKey = ["project-diff", projectId];
+  const statusKey = ["git-status", projectId];
+
+  const { data: diff, isLoading } = useQuery({ queryKey: diffKey, queryFn: () => get<RunDiff>(`/projects/${projectId}/diff`) });
+  const { data: status } = useQuery({ queryKey: statusKey, queryFn: () => get<GitStatus>(`/projects/${projectId}/git-status`) });
+
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: diffKey });
+    void qc.invalidateQueries({ queryKey: statusKey });
+  };
+
+  const commit = useMutation({
+    mutationFn: () => post<{ hash: string }>(`/projects/${projectId}/commit`, { message: message.trim() }),
+    onSuccess: ({ hash }) => {
+      toast({ tone: "good", title: "Committed", body: hash });
+      setMessage("");
+      refresh();
+    },
+    onError: (err) => toast({ tone: "bad", title: "Commit failed", body: (err as Error).message }),
+  });
+  const push = useMutation({
+    mutationFn: () => post<{ output: string }>(`/projects/${projectId}/push`),
+    onSuccess: ({ output }) => {
+      toast({ tone: "good", title: "Pushed", body: output });
+      void qc.invalidateQueries({ queryKey: statusKey });
+    },
+    onError: (err) => toast({ tone: "bad", title: "Push failed", body: (err as Error).message }),
+  });
+
+  if (diff && !diff.available) {
+    return <EmptyState title="Not a git repository" hint="This project's folder isn't a git repo, or it's unavailable." />;
+  }
+
+  const files = diff?.files ?? [];
+  const nothingToPush = Boolean(status?.hasUpstream) && (status?.ahead ?? 0) === 0;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <Mono>message</Mono>
+        <Textarea autoFocus className="mt-1.5" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Commit message…" />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button variant="solid" disabled={!message.trim() || files.length === 0 || commit.isPending} onClick={() => commit.mutate()}>
+          {commit.isPending ? "Committing…" : "Commit"}
+        </Button>
+        <Button disabled={!status?.available || nothingToPush || push.isPending} onClick={() => push.mutate()}>
+          {push.isPending ? "Pushing…" : status?.ahead ? `Push ${status.ahead}` : "Push"}
+        </Button>
+        {status?.branch && <Mono className="ml-auto">{status.branch}</Mono>}
+      </div>
+
+      <div>
+        <Mono>{files.length > 0 ? `${files.length} ${files.length === 1 ? "file" : "files"} changed` : "changes"}</Mono>
+        <div className="mt-1.5 max-h-[40vh] overflow-y-auto rounded-lg border border-hairline bg-surface">
+          {isLoading ? (
+            <p className="px-5 py-4 text-[12px] text-faint">Loading changes…</p>
+          ) : files.length === 0 ? (
+            <div className="p-5">
+              <EmptyState title="No changes" hint="The working tree is clean — nothing to commit." />
+            </div>
+          ) : (
+            <DiffFileList diff={diff!} />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
