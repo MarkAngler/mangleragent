@@ -26,6 +26,7 @@ export function ActiveAgentsPage() {
         eyebrow="Orchestration"
         title="Active Agents"
         description="Every interactive terminal session and orchestrated agent run, live."
+        compact
         actions={
           <div className="flex items-center rounded-md border border-hairline-strong bg-surface p-0.5 text-[12px]">
             {(["list", "columns"] as const).map((v) => (

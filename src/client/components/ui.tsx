@@ -35,14 +35,27 @@ export function PageHeader({
   title,
   actions,
   description,
+  compact = false,
 }: {
   eyebrow: string;
   title: string;
   actions?: ReactNode;
   description?: string;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <header className="mb-4 flex items-center justify-between gap-4 border-b border-hairline pb-3">
+        <div className="flex min-w-0 items-baseline gap-3">
+          <h1 className="text-lg font-semibold tracking-tight text-ink">{title}</h1>
+          {description && <p className="hidden truncate text-[12px] text-muted md:block">{description}</p>}
+        </div>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </header>
+    );
+  }
   return (
-    <header className="mb-8 flex items-end justify-between gap-6 border-b border-hairline pb-6">
+    <header className="mb-5 flex items-end justify-between gap-6 border-b border-hairline pb-4">
       <div>
         <Mono>{eyebrow}</Mono>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">{title}</h1>
