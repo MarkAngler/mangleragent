@@ -39,7 +39,7 @@ export function RunColumns({ runs, projects, maxVisible }: { runs: AgentRun[]; p
     <>
       <div
         className="grid min-h-0 flex-1 gap-3 overflow-y-auto pb-4"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(20rem, 1fr))", gridAutoRows: "minmax(20rem, 1fr)" }}
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(20rem, 1fr))", gridAutoRows: "minmax(20rem, 1fr)" }}
       >
         {columns.map((column) => {
           const key = pinKey(column.projectId);
