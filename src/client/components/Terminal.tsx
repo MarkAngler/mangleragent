@@ -3,6 +3,10 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 
+// Coalesce a burst of layout reflows (window drag, panel toggle, tab switch) into a
+// single resize so the Ink TUI gets one SIGWINCH instead of a storm that scrambles it.
+const RESIZE_DEBOUNCE_MS = 100;
+
 export function Terminal({ runId }: { runId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -41,13 +45,20 @@ export function Terminal({ runId }: { runId: string }) {
     };
     ws.onopen = () => sendResize();
 
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const debouncedResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(sendResize, RESIZE_DEBOUNCE_MS);
+    };
+
     const onData = term.onData((d) => {
       if (ws.readyState === ws.OPEN) ws.send(d);
     });
-    const observer = new ResizeObserver(() => sendResize());
+    const observer = new ResizeObserver(() => debouncedResize());
     observer.observe(el);
 
     return () => {
+      clearTimeout(resizeTimer);
       observer.disconnect();
       onData.dispose();
       ws.close();

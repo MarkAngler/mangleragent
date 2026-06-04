@@ -1,11 +1,16 @@
 import * as nodePty from "@lydell/node-pty";
 import type { IPty } from "@lydell/node-pty";
+// @xterm/headless is CJS whose named export tsx can't resolve at runtime, so reach Terminal
+// via the default; @xterm/addon-serialize ships a normal ESM named export.
+import xtermHeadless from "@xterm/headless";
+import type { Terminal as HeadlessTerminal } from "@xterm/headless";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebSocketServer, type WebSocket } from "ws";
 import { runsRepo } from "../db/runs";
 import { broadcast, registerUpgradeHandler } from "../realtime/hub";
 
 const CLAUDE_BIN = process.env.MANGLED_CLAUDE_BIN ?? "claude";
-const SCROLLBACK_LIMIT = 200_000;
+const SCROLLBACK_ROWS = 1000;
 // The claude TUI streams spinner/token frames while it works, so a quiet stretch
 // means it has reached its prompt and is waiting for the user. 4s avoids flicker
 // between redraw frames while staying responsive.
@@ -13,7 +18,10 @@ const IDLE_MS = 4000;
 
 interface PtySession {
   term: IPty;
-  buffer: string;
+  // A headless xterm mirrors the TUI's screen so a reattaching client gets a clean
+  // serialized snapshot of the current state, not a replay of raw cursor-relative frames.
+  emulator: HeadlessTerminal;
+  serializer: SerializeAddon;
   sockets: Set<WebSocket>;
   killing: boolean;
   lastDataAt: number;
@@ -51,9 +59,15 @@ export function startPtySession(runId: string, cwd: string, opts?: SpawnOpts): v
     return;
   }
 
+  // allowProposedApi: SerializeAddon reads term.buffer, which headless gates behind this flag.
+  const emulator = new xtermHeadless.Terminal({ cols: 80, rows: 24, scrollback: SCROLLBACK_ROWS, allowProposedApi: true });
+  const serializer = new SerializeAddon();
+  emulator.loadAddon(serializer);
+
   const session: PtySession = {
     term,
-    buffer: "",
+    emulator,
+    serializer,
     sockets: new Set(),
     killing: false,
     lastDataAt: Date.now(),
@@ -70,7 +84,7 @@ export function startPtySession(runId: string, cwd: string, opts?: SpawnOpts): v
       session.waiting = false;
       broadcast({ type: "run.waiting", runId, waiting: false });
     }
-    session.buffer = (session.buffer + data).slice(-SCROLLBACK_LIMIT);
+    session.emulator.write(data);
     for (const ws of session.sockets) if (ws.readyState === ws.OPEN) ws.send(data);
   });
 
@@ -94,6 +108,7 @@ export function startPtySession(runId: string, cwd: string, opts?: SpawnOpts): v
         /* ignore */
       }
     }
+    session.emulator.dispose();
     sessions.delete(runId);
   });
 }
@@ -127,7 +142,8 @@ function attachSocket(runId: string, ws: WebSocket): void {
     ws.close();
     return;
   }
-  if (session.buffer) ws.send(session.buffer);
+  const snapshot = session.serializer.serialize();
+  if (snapshot) ws.send(snapshot);
   session.sockets.add(ws);
 
   ws.on("message", (raw) => {
@@ -135,7 +151,10 @@ function attachSocket(runId: string, ws: WebSocket): void {
     if (data.charCodeAt(0) === 0) {
       try {
         const control = JSON.parse(data.slice(1)) as { type: string; cols?: number; rows?: number };
-        if (control.type === "resize" && control.cols && control.rows) session.term.resize(control.cols, control.rows);
+        if (control.type === "resize" && control.cols && control.rows) {
+          session.term.resize(control.cols, control.rows);
+          session.emulator.resize(control.cols, control.rows);
+        }
       } catch {
         /* ignore malformed control frame */
       }
