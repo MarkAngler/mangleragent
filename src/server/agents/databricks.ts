@@ -14,12 +14,16 @@ export interface ManglerCompletion {
 
 let client: OpenAI | null = null;
 
-// The workspace host may be configured with or without a scheme; the OpenAI-compatible
-// API lives under the /serving-endpoints path.
-export function gatewayBaseUrl(host: string): string {
+// The workspace host may be configured with or without a scheme; normalize to a
+// scheme-qualified origin with no trailing slash (e.g. https://dbc-xxx.cloud.databricks.com).
+export function workspaceBaseUrl(host: string): string {
   const trimmed = host.trim().replace(/\/+$/, "");
-  const withScheme = /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return `${withScheme}/serving-endpoints`;
+  return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+// The OpenAI-compatible Model Serving API lives under the /serving-endpoints path.
+export function gatewayBaseUrl(host: string): string {
+  return `${workspaceBaseUrl(host)}/serving-endpoints`;
 }
 
 function getClient(): OpenAI {

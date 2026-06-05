@@ -3,15 +3,33 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { del, get, patch, post } from "../lib/api";
 import { useToast } from "../components/Toast";
-import type { RegisteredAgent } from "../../shared/types";
+import type { AgentProvider, RegisteredAgent } from "../../shared/types";
 import { Button, Card, Drawer, EmptyState, Input, Modal, Mono, PageHeader, StatusDot, Textarea } from "../components/ui";
 import { usePageTitle } from "../components/PageTitleProvider";
 
 interface AgentInput {
+  provider: AgentProvider;
   name: string;
   endpoint: string;
   description: string;
 }
+
+// Per-provider copy for the shared `endpoint` field, which holds a Model Serving endpoint name
+// for "databricks" and a Genie space id for "databricks_genie".
+const PROVIDERS: Record<AgentProvider, { label: string; field: string; placeholder: string; help: string }> = {
+  databricks: {
+    label: "Model Serving endpoint",
+    field: "serving endpoint",
+    placeholder: "my-agent-endpoint",
+    help: "The Databricks Model Serving endpoint name (used as the model).",
+  },
+  databricks_genie: {
+    label: "Genie space",
+    field: "genie space id",
+    placeholder: "01ef0000000000000000000000000000",
+    help: "The Databricks Genie space id (the id in the space's URL).",
+  },
+};
 
 export function ExternalAgentsPage() {
   usePageTitle("External Agents");
@@ -51,7 +69,7 @@ export function ExternalAgentsPage() {
       <PageHeader
         eyebrow="Orchestration"
         title="External Agents"
-        description="Register agents that run outside this app and talk to them directly or via Mangler. Phase 1 supports Databricks Model Serving endpoints, queried with the configured Databricks credentials."
+        description="Register agents that run outside this app and talk to them directly or via Mangler. Supports Databricks Model Serving endpoints and Genie spaces, queried with the configured Databricks credentials."
         actions={
           <Button variant="solid" onClick={() => setAddOpen(true)}>
             + Register agent
@@ -66,7 +84,7 @@ export function ExternalAgentsPage() {
       )}
 
       {agents.length === 0 ? (
-        <EmptyState title="No external agents yet" hint="Register a Databricks Model Serving endpoint to chat with it or let Mangler consult it." />
+        <EmptyState title="No external agents yet" hint="Register a Databricks Model Serving endpoint or Genie space to chat with it or let Mangler consult it." />
       ) : (
         <div className="flex flex-col gap-2">
           {agents.map((a) => (
@@ -75,9 +93,11 @@ export function ExternalAgentsPage() {
                 <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setOpenId(a.id)}>
                   <div className="flex items-center gap-2">
                     <h3 className="truncate text-sm font-semibold text-ink">{a.name}</h3>
-                    <Mono className="text-faint">{a.provider}</Mono>
+                    <Mono className="text-faint">{PROVIDERS[a.provider].label}</Mono>
                   </div>
-                  <Mono className="mt-1 block">endpoint {a.endpoint}</Mono>
+                  <Mono className="mt-1 block">
+                    {PROVIDERS[a.provider].field} {a.endpoint}
+                  </Mono>
                   {a.description && <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-muted">{a.description}</p>}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -132,10 +152,12 @@ function AddAgentModal({
   error: string | null;
   pending: boolean;
 }) {
+  const [provider, setProvider] = useState<AgentProvider>("databricks");
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [description, setDescription] = useState("");
   const valid = name.trim() && endpoint.trim();
+  const copy = PROVIDERS[provider];
 
   return (
     <Modal
@@ -148,7 +170,7 @@ function AddAgentModal({
           <Button
             variant="solid"
             disabled={!valid || pending}
-            onClick={() => onCreate({ name: name.trim(), endpoint: endpoint.trim(), description: description.trim() })}
+            onClick={() => onCreate({ provider, name: name.trim(), endpoint: endpoint.trim(), description: description.trim() })}
           >
             Register
           </Button>
@@ -157,13 +179,24 @@ function AddAgentModal({
     >
       <div className="flex flex-col gap-4">
         <div>
+          <Mono>provider</Mono>
+          <select
+            value={provider}
+            onChange={(e) => setProvider(e.target.value as AgentProvider)}
+            className="mt-1.5 w-full rounded-md border border-hairline-strong bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+          >
+            <option value="databricks">{PROVIDERS.databricks.label}</option>
+            <option value="databricks_genie">{PROVIDERS.databricks_genie.label}</option>
+          </select>
+        </div>
+        <div>
           <Mono>name</Mono>
           <Input className="mt-1.5" value={name} onChange={(e) => setName(e.target.value)} placeholder="Support triage agent" />
         </div>
         <div>
-          <Mono>serving endpoint</Mono>
-          <Input className="mt-1.5 font-mono" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="my-agent-endpoint" />
-          <p className="mt-1.5 text-xs text-faint">The Databricks Model Serving endpoint name (used as the model).</p>
+          <Mono>{copy.field}</Mono>
+          <Input className="mt-1.5 font-mono" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder={copy.placeholder} />
+          <p className="mt-1.5 text-xs text-faint">{copy.help}</p>
         </div>
         <div>
           <Mono>description</Mono>
@@ -199,11 +232,15 @@ function AgentEditor({
   return (
     <div className="flex flex-col gap-5">
       <div>
+        <Mono>provider</Mono>
+        <p className="mt-1.5 text-sm text-muted">{PROVIDERS[agent.provider].label}</p>
+      </div>
+      <div>
         <Mono>name</Mono>
         <Input className="mt-1.5 text-base font-medium" value={name} onChange={(e) => setName(e.target.value)} onBlur={commit} />
       </div>
       <div>
-        <Mono>serving endpoint</Mono>
+        <Mono>{PROVIDERS[agent.provider].field}</Mono>
         <Input className="mt-1.5 font-mono" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} onBlur={commit} />
       </div>
       <div>

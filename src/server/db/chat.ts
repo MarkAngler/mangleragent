@@ -59,6 +59,19 @@ export const conversationsRepo = {
   messageCount(id: string): number {
     return (db().prepare("SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ?").get(id) as { n: number }).n;
   },
+
+  // Genie issues its own conversation id; persist it so follow-up turns keep context.
+  // Server-only — not part of the shared Conversation type sent to clients.
+  getGenieConversationId(id: string): string | null {
+    const row = db().prepare("SELECT genie_conversation_id FROM conversations WHERE id = ?").get(id) as
+      | { genie_conversation_id: string | null }
+      | undefined;
+    return row?.genie_conversation_id ?? null;
+  },
+
+  setGenieConversationId(id: string, genieConversationId: string): void {
+    db().prepare("UPDATE conversations SET genie_conversation_id = ? WHERE id = ?").run(genieConversationId, id);
+  },
 };
 
 export const messagesRepo = {

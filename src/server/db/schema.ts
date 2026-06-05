@@ -42,7 +42,9 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE TABLE IF NOT EXISTS registered_agents (
   id          TEXT PRIMARY KEY,
-  provider    TEXT NOT NULL CHECK (provider IN ('databricks')),
+  -- No CHECK: the AgentProvider Zod enum gates this at the POST boundary, and a
+  -- SQLite CHECK on a fast-moving enum only buys recurring migration pain.
+  provider    TEXT NOT NULL,
   name        TEXT NOT NULL,
   endpoint    TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
@@ -51,10 +53,11 @@ CREATE TABLE IF NOT EXISTS registered_agents (
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
-  id          TEXT PRIMARY KEY,
-  title       TEXT NOT NULL DEFAULT 'New conversation',
-  agent_id    TEXT REFERENCES registered_agents(id) ON DELETE CASCADE,
-  created_at  INTEGER NOT NULL
+  id                   TEXT PRIMARY KEY,
+  title                TEXT NOT NULL DEFAULT 'New conversation',
+  agent_id             TEXT REFERENCES registered_agents(id) ON DELETE CASCADE,
+  genie_conversation_id TEXT,
+  created_at           INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS messages (

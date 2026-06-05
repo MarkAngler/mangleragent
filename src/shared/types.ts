@@ -276,9 +276,10 @@ export const Conversation = z.object({
 });
 export type Conversation = z.infer<typeof Conversation>;
 
-// External agents registered with the app. Phase 1 supports Databricks Model
-// Serving endpoints, queried with chat messages using `endpoint` as the model.
-export const AgentProvider = z.enum(["databricks"]);
+// External agents registered with the app. `endpoint` is the provider's target
+// identifier: a Model Serving endpoint name for "databricks", or a Genie space id
+// for "databricks_genie". Both are queried with the configured Databricks credentials.
+export const AgentProvider = z.enum(["databricks", "databricks_genie"]);
 export type AgentProvider = z.infer<typeof AgentProvider>;
 
 export const RegisteredAgent = z.object({

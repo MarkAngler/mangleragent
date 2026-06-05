@@ -95,7 +95,11 @@ export function ExternalAgentChatPage() {
             <StatusDot tone={running ? "accent" : "good"} pulse={running} />
           </div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">{agent?.name ?? "Agent"}</h1>
-          {agent && <Mono className="mt-1 block text-faint">endpoint {agent.endpoint}</Mono>}
+          {agent && (
+            <Mono className="mt-1 block text-faint">
+              {agent.provider === "databricks_genie" ? "genie space id" : "serving endpoint"} {agent.endpoint}
+            </Mono>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {conversations.length > 0 && (

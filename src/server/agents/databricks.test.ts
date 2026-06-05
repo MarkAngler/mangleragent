@@ -9,13 +9,23 @@ import type OpenAI from "openai";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ma-databricks-test-"));
 process.env.MANGLED_DATA_DIR = tmp;
 
-const { toOpenAiMessages, toOpenAiTools, accumulateStream, gatewayBaseUrl, streamResponsesText } = await import("./databricks");
+const { toOpenAiMessages, toOpenAiTools, accumulateStream, gatewayBaseUrl, workspaceBaseUrl, streamResponsesText } = await import("./databricks");
 
 type ChatChunk = OpenAI.Chat.Completions.ChatCompletionChunk;
 
 function chunk(delta: ChatChunk["choices"][number]["delta"]): ChatChunk {
   return { choices: [{ index: 0, delta, finish_reason: null }] } as unknown as ChatChunk;
 }
+
+describe("workspaceBaseUrl", () => {
+  it("adds https when the host has no scheme", () => {
+    expect(workspaceBaseUrl("dbc-e139bf31-ef34.cloud.databricks.com")).toBe("https://dbc-e139bf31-ef34.cloud.databricks.com");
+  });
+
+  it("preserves an explicit scheme and strips trailing slashes", () => {
+    expect(workspaceBaseUrl("https://example.cloud.databricks.com/")).toBe("https://example.cloud.databricks.com");
+  });
+});
 
 describe("gatewayBaseUrl", () => {
   it("adds https when the host has no scheme and appends the gateway path", () => {

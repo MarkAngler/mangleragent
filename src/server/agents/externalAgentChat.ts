@@ -2,7 +2,7 @@ import { env } from "../env";
 import { conversationsRepo, messagesRepo } from "../db/chat";
 import { registeredAgentsRepo } from "../db/registeredAgents";
 import { broadcast } from "../realtime/hub";
-import { invokeDatabricksAgent } from "./databricks";
+import { invokeRegisteredAgent } from "./invokeAgent";
 
 // Run one turn of a chat with a registered external agent. The simpler sibling of
 // runMangler: a single streamed completion against the agent's endpoint, no tools.
@@ -22,8 +22,14 @@ export async function runExternalAgentTurn(conversationId: string): Promise<void
 
   try {
     const onText = (text: string) => broadcast({ type: "agent.delta", conversationId, text });
-    const reply = await invokeDatabricksAgent({ endpoint: agent.endpoint, messages, conversationId, onText });
-    messagesRepo.add(conversationId, "assistant", reply);
+    const result = await invokeRegisteredAgent(agent, {
+      messages,
+      conversationId,
+      genieConversationId: conversationsRepo.getGenieConversationId(conversationId) ?? undefined,
+      onText,
+    });
+    if (result.genieConversationId) conversationsRepo.setGenieConversationId(conversationId, result.genieConversationId);
+    messagesRepo.add(conversationId, "assistant", result.reply);
     broadcast({ type: "agent.done", conversationId });
   } catch (err) {
     broadcast({ type: "agent.error", conversationId, error: (err as Error).message });

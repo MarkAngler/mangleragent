@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { registeredAgentsRepo } from "../db/registeredAgents";
 import { conversationsRepo } from "../db/chat";
-import { invokeDatabricksAgent } from "../agents/databricks";
+import { invokeRegisteredAgent } from "../agents/invokeAgent";
 import { CreateRegisteredAgentInput, UpdateRegisteredAgentInput } from "../../shared/types";
 
 export const externalAgentsRouter = Router();
@@ -54,7 +54,7 @@ externalAgentsRouter.post("/external-agents/:id/test", async (req, res) => {
     return;
   }
   try {
-    const reply = await invokeDatabricksAgent({ endpoint: agent.endpoint, messages: [{ role: "user", content: "ping" }] });
+    const { reply } = await invokeRegisteredAgent(agent, { messages: [{ role: "user", content: "ping" }] });
     res.json({ ok: true, reply });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

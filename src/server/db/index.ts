@@ -20,7 +20,41 @@ export function initDb(): Database.Database {
   if (!conversationCols.some((c) => c.name === "agent_id")) {
     database.exec("ALTER TABLE conversations ADD COLUMN agent_id TEXT REFERENCES registered_agents(id) ON DELETE CASCADE");
   }
+  if (!conversationCols.some((c) => c.name === "genie_conversation_id")) {
+    database.exec("ALTER TABLE conversations ADD COLUMN genie_conversation_id TEXT");
+  }
+  dropLegacyProviderCheck(database);
   return database;
+}
+
+// Older databases created the registered_agents table with CHECK (provider IN ('databricks')),
+// which rejects new providers like 'databricks_genie'. SQLite can't ALTER a CHECK in place, so
+// rebuild the table without it (the AgentProvider Zod enum is the gate now). FK pragmas must be
+// toggled outside the transaction; conversations.agent_id references by name, so RENAME keeps it valid.
+function dropLegacyProviderCheck(database: Database.Database): void {
+  const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'registered_agents'").get() as
+    | { sql: string }
+    | undefined;
+  if (!table || !/CHECK\s*\(\s*provider/i.test(table.sql)) return;
+  database.pragma("foreign_keys = OFF");
+  database.transaction(() => {
+    database.exec(`
+      CREATE TABLE registered_agents_new (
+        id          TEXT PRIMARY KEY,
+        provider    TEXT NOT NULL,
+        name        TEXT NOT NULL,
+        endpoint    TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        created_at  INTEGER NOT NULL,
+        updated_at  INTEGER NOT NULL
+      );
+      INSERT INTO registered_agents_new (id, provider, name, endpoint, description, created_at, updated_at)
+        SELECT id, provider, name, endpoint, description, created_at, updated_at FROM registered_agents;
+      DROP TABLE registered_agents;
+      ALTER TABLE registered_agents_new RENAME TO registered_agents;
+    `);
+  })();
+  database.pragma("foreign_keys = ON");
 }
 
 export function db(): Database.Database {
