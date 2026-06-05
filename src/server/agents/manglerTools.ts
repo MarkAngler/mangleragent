@@ -7,10 +7,12 @@ import { tasksRepo } from "../db/tasks";
 import { appendPosition } from "../../shared/board";
 import { broadcast } from "../realtime/hub";
 import { runsRepo } from "../db/runs";
+import { registeredAgentsRepo } from "../db/registeredAgents";
 import { schedulesRepo } from "../db/schedules";
 import { readDef, MANGLER_SCOPE } from "../defs";
 import { commit, push } from "../git";
 import { startOrchestratedRun } from "./orchestrator";
+import { invokeDatabricksAgent } from "./databricks";
 import { isValidCron, nextRun } from "../cron";
 import { Approver } from "../../shared/types";
 import { runManglerCommand } from "./manglerCommands";
@@ -170,6 +172,26 @@ const defs: ErasedTool[] = [
       void startOrchestratedRun(run, prompt);
       broadcast({ type: "run.updated", runId: run.id });
       return { runId: run.id, status: "started", approver: run.approver };
+    },
+  }),
+  tool({
+    name: "list_external_agents",
+    description:
+      "List registered external agents (id, name, endpoint, description). These are specialized agents running outside this app (e.g. Databricks Model Serving endpoints) that you can consult via ask_external_agent.",
+    schema: z.object({}),
+    handler: () =>
+      registeredAgentsRepo.list().map((a) => ({ id: a.id, name: a.name, endpoint: a.endpoint, description: a.description })),
+  }),
+  tool({
+    name: "ask_external_agent",
+    description:
+      "Send a prompt to a registered external agent and return its reply. Resolve the agent id with list_external_agents first. Use this to consult a specialized external agent; the call is one-shot (no shared history).",
+    schema: z.object({ agentId: z.string(), prompt: z.string().min(1) }),
+    handler: async ({ agentId, prompt }) => {
+      const agent = registeredAgentsRepo.get(agentId);
+      if (!agent) return { error: "agent not found" };
+      const reply = await invokeDatabricksAgent({ endpoint: agent.endpoint, messages: [{ role: "user", content: prompt }] });
+      return { reply };
     },
   }),
   tool({

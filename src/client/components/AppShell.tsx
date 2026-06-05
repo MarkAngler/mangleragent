@@ -13,6 +13,7 @@ const NAV: Array<{ to: string; label: string; end?: boolean }> = [
   { to: "/", label: "Mangler", end: true },
   { to: "/projects", label: "Projects" },
   { to: "/agents", label: "Active Agents" },
+  { to: "/external-agents", label: "External Agents" },
   { to: "/notes", label: "Notes & Tasks" },
   { to: "/schedules", label: "Schedules" },
   { to: "/definitions", label: "Definitions" },

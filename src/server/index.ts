@@ -15,6 +15,7 @@ import { notesRouter } from "./api/notes";
 import { tasksRouter } from "./api/tasks";
 import { manglerRouter } from "./api/mangler";
 import { runsRouter } from "./api/runs";
+import { externalAgentsRouter } from "./api/externalAgents";
 import { defsRouter } from "./api/defs";
 import { settingsRouter } from "./api/settings";
 import { fsRouter } from "./api/fs";
@@ -39,6 +40,7 @@ function main(): void {
   app.use("/api", tasksRouter);
   app.use("/api", manglerRouter);
   app.use("/api", runsRouter);
+  app.use("/api", externalAgentsRouter);
   app.use("/api", defsRouter);
   app.use("/api", settingsRouter);
   app.use("/api", fsRouter);

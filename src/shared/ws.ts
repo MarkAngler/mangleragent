@@ -33,6 +33,11 @@ export const ServerMsg = z.discriminatedUnion("type", [
     cwd: z.string(),
   }),
   z.object({ type: z.literal("mangler.command_resolved"), conversationId: z.string(), commandId: z.string(), approved: z.boolean() }),
+
+  // External-agent streaming chat
+  z.object({ type: z.literal("agent.delta"), conversationId: z.string(), text: z.string() }),
+  z.object({ type: z.literal("agent.done"), conversationId: z.string() }),
+  z.object({ type: z.literal("agent.error"), conversationId: z.string(), error: z.string() }),
 ]);
 export type ServerMsg = z.infer<typeof ServerMsg>;
 

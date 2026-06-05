@@ -271,9 +271,41 @@ export type DecideInput = z.infer<typeof DecideInput>;
 export const Conversation = z.object({
   id: z.string(),
   title: z.string(),
+  agentId: z.string().nullable(),
   createdAt: z.number(),
 });
 export type Conversation = z.infer<typeof Conversation>;
+
+// External agents registered with the app. Phase 1 supports Databricks Model
+// Serving endpoints, queried with chat messages using `endpoint` as the model.
+export const AgentProvider = z.enum(["databricks"]);
+export type AgentProvider = z.infer<typeof AgentProvider>;
+
+export const RegisteredAgent = z.object({
+  id: z.string(),
+  provider: AgentProvider,
+  name: z.string(),
+  endpoint: z.string(),
+  description: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type RegisteredAgent = z.infer<typeof RegisteredAgent>;
+
+export const CreateRegisteredAgentInput = z.object({
+  provider: AgentProvider.optional(),
+  name: z.string().min(1),
+  endpoint: z.string().min(1),
+  description: z.string().optional(),
+});
+export type CreateRegisteredAgentInput = z.infer<typeof CreateRegisteredAgentInput>;
+
+export const UpdateRegisteredAgentInput = z.object({
+  name: z.string().min(1).optional(),
+  endpoint: z.string().min(1).optional(),
+  description: z.string().optional(),
+});
+export type UpdateRegisteredAgentInput = z.infer<typeof UpdateRegisteredAgentInput>;
 
 export const ChatMessage = z.object({
   id: z.string(),

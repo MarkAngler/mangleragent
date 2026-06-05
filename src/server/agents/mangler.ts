@@ -78,6 +78,8 @@ function summarize(name: string, output: unknown): string | undefined {
       return `scheduled "${String(out.title ?? "")}"`;
     case "load_skill":
       return `loaded "${String(out.name ?? "")}"`;
+    case "ask_external_agent":
+      return "replied";
     case "run_command":
       return "denied" in out ? "denied" : `exit ${String(out.exitCode ?? "?")}`;
     default:

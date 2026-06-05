@@ -118,6 +118,30 @@ export async function streamDatabricks(args: {
   return accumulateStream(stream, args.onText);
 }
 
+// Query a registered Databricks agent (a Model Serving endpoint) with a chat
+// history, streaming text via onText. The endpoint is opaque, so no tools are sent.
+export async function invokeDatabricksAgent(args: {
+  endpoint: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  onText?: (text: string) => void;
+}): Promise<string> {
+  const stream = await getClient().chat.completions.create({
+    model: args.endpoint,
+    max_tokens: 4096,
+    messages: args.messages,
+    stream: true,
+  });
+  let text = "";
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (delta) {
+      text += delta;
+      args.onText?.(delta);
+    }
+  }
+  return text;
+}
+
 // A plain, tool-free completion for short auxiliary calls (e.g. titling a run).
 export async function completeDatabricks(args: { model: string; system: string; user: string; maxTokens: number }): Promise<string> {
   const res = await getClient().chat.completions.create({

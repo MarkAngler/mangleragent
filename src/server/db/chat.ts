@@ -5,7 +5,12 @@ import type { ChatMessage, Conversation } from "../../shared/types";
 interface ConversationRow {
   id: string;
   title: string;
+  agent_id: string | null;
   created_at: number;
+}
+
+function toConversation(r: ConversationRow): Conversation {
+  return { id: r.id, title: r.title, agentId: r.agent_id, createdAt: r.created_at };
 }
 
 interface MessageRow {
@@ -17,22 +22,29 @@ interface MessageRow {
 }
 
 export const conversationsRepo = {
+  // Mangler's own conversations only; external-agent chats (agent_id set) are listed per agent.
   list(): Conversation[] {
-    return (db().prepare("SELECT * FROM conversations ORDER BY created_at DESC").all() as ConversationRow[]).map((r) => ({
-      id: r.id,
-      title: r.title,
-      createdAt: r.created_at,
-    }));
+    return (db().prepare("SELECT * FROM conversations WHERE agent_id IS NULL ORDER BY created_at DESC").all() as ConversationRow[]).map(
+      toConversation,
+    );
+  },
+
+  listByAgent(agentId: string): Conversation[] {
+    return (db().prepare("SELECT * FROM conversations WHERE agent_id = ? ORDER BY created_at DESC").all(agentId) as ConversationRow[]).map(
+      toConversation,
+    );
   },
 
   get(id: string): Conversation | undefined {
     const r = db().prepare("SELECT * FROM conversations WHERE id = ?").get(id) as ConversationRow | undefined;
-    return r ? { id: r.id, title: r.title, createdAt: r.created_at } : undefined;
+    return r ? toConversation(r) : undefined;
   },
 
-  create(title = "New conversation"): Conversation {
-    const conv: Conversation = { id: randomUUID(), title, createdAt: now() };
-    db().prepare("INSERT INTO conversations (id, title, created_at) VALUES (?, ?, ?)").run(conv.id, conv.title, conv.createdAt);
+  create(title = "New conversation", agentId: string | null = null): Conversation {
+    const conv: Conversation = { id: randomUUID(), title, agentId, createdAt: now() };
+    db()
+      .prepare("INSERT INTO conversations (id, title, agent_id, created_at) VALUES (?, ?, ?, ?)")
+      .run(conv.id, conv.title, conv.agentId, conv.createdAt);
     return conv;
   },
 

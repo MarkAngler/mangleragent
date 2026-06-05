@@ -16,6 +16,10 @@ export function initDb(): Database.Database {
   if (!projectCols.some((c) => c.name === "description")) {
     database.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
   }
+  const conversationCols = database.prepare("PRAGMA table_info(conversations)").all() as { name: string }[];
+  if (!conversationCols.some((c) => c.name === "agent_id")) {
+    database.exec("ALTER TABLE conversations ADD COLUMN agent_id TEXT REFERENCES registered_agents(id) ON DELETE CASCADE");
+  }
   return database;
 }
 

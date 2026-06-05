@@ -6,6 +6,8 @@ import { ManglerPage } from "./pages/ManglerPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { BoardPage } from "./pages/BoardPage";
 import { ActiveAgentsPage } from "./pages/ActiveAgentsPage";
+import { ExternalAgentsPage } from "./pages/ExternalAgentsPage";
+import { ExternalAgentChatPage } from "./pages/ExternalAgentChatPage";
 import { NotesPage } from "./pages/NotesPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 import { DefinitionsPage } from "./pages/DefinitionsPage";
@@ -21,6 +23,8 @@ export function App() {
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id" element={<BoardPage />} />
             <Route path="/agents" element={<ActiveAgentsPage />} />
+            <Route path="/external-agents" element={<ExternalAgentsPage />} />
+            <Route path="/external-agents/:id" element={<ExternalAgentChatPage />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/schedules" element={<SchedulesPage />} />
             <Route path="/definitions" element={<DefinitionsPage />} />
