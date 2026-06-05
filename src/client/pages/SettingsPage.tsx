@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { get, patch } from "../lib/api";
+import { get, patch, post } from "../lib/api";
 import { Button, Card, Input, Mono, PageHeader, StatusDot, Textarea } from "../components/ui";
 import { usePageTitle } from "../components/PageTitleProvider";
+import { FolderPicker } from "../components/FolderPicker";
+import { useToast } from "../components/Toast";
 
 interface Settings {
   anthropicConfigured: boolean;
@@ -16,6 +18,7 @@ interface Settings {
   defaultSystemPrompt: string;
   cliAutorun: boolean;
   cliWorkdir: string;
+  dataDir: string;
 }
 
 export function SettingsPage() {
@@ -39,6 +42,17 @@ export function SettingsPage() {
 
   const [cliWorkdir, setCliWorkdir] = useState<string | null>(null);
   const cliWorkdirValue = cliWorkdir ?? data?.cliWorkdir ?? "";
+
+  const toast = useToast();
+  const [target, setTarget] = useState<string | null>(null);
+  const moveData = useMutation({
+    mutationFn: (targetDir: string) => post<{ dataDir: string }>("/settings/data-dir/move", { targetDir }),
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: ["settings"] });
+      toast({ tone: "good", title: "Data directory moved", body: result?.dataDir });
+    },
+    onError: (err) => toast({ tone: "bad", title: "Move failed", body: (err as Error).message }),
+  });
 
   return (
     <>
@@ -191,6 +205,25 @@ export function SettingsPage() {
               </Button>
             </div>
             <p className="mt-2 text-[12px] text-muted">Where commands run when Mangler doesn't pass a project. Leave blank to require a project per command.</p>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <Mono>data directory</Mono>
+          <p className="mt-2 max-w-sm text-sm text-muted">
+            Moves the whole data directory (database, run history, and global definitions) into a <span className="font-mono">mangled-agents</span> folder at the chosen location. Stop active agents first.
+          </p>
+          <p className="mt-3 truncate font-mono text-[12px] text-faint" title={data?.dataDir}>
+            current: {data?.dataDir ?? "…"}
+          </p>
+          <div className="mt-3">
+            <FolderPicker onSelect={setTarget} />
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <Button variant="solid" disabled={!target || moveData.isPending} onClick={() => target && moveData.mutate(target)}>
+              {moveData.isPending ? "Moving…" : "Move data here"}
+            </Button>
+            {target && <span className="truncate font-mono text-[12px] text-muted">→ {target}/mangled-agents</span>}
           </div>
         </Card>
       </div>

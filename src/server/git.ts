@@ -5,7 +5,10 @@ import path from "node:path";
 import { env } from "./env";
 import type { DiffFileStatus, FileDiff, GitBranches, GitStatus, RunDiff } from "../shared/types";
 
-const IDX_DIR = path.join(env.dataDir, "diff-idx");
+// Resolved per call so it tracks a data dir relocated at runtime.
+function idxDir(): string {
+  return path.join(env.dataDir, "diff-idx");
+}
 const GIT_TIMEOUT = 15_000;
 // Pushing talks to a remote, which can outlast the default local-op timeout.
 const PUSH_TIMEOUT = 60_000;
@@ -50,8 +53,9 @@ function headExists(cwd: string): boolean {
  */
 export function snapshotTree(cwd: string): string | null {
   if (!fs.existsSync(cwd) || !isGitRepo(cwd)) return null;
-  fs.mkdirSync(IDX_DIR, { recursive: true });
-  const idx = path.join(IDX_DIR, `${randomUUID()}.idx`);
+  const dir = idxDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const idx = path.join(dir, `${randomUUID()}.idx`);
   try {
     try {
       git(cwd, ["read-tree", "HEAD"], { indexFile: idx });

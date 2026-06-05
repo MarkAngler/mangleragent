@@ -5,7 +5,35 @@ import fs from "node:fs";
 
 config({ quiet: true });
 
-const dataDir = process.env.MANGLED_DATA_DIR ?? path.join(os.homedir(), ".mangled-agents");
+// The anchor is fixed for the process lifetime; the data dir can be relocated at
+// runtime and is recorded in a pointer file that always lives in the anchor, so
+// it is found before the (possibly moved) data dir is opened.
+const baseDir = process.env.MANGLED_DATA_DIR ?? path.join(os.homedir(), ".mangled-agents");
+fs.mkdirSync(baseDir, { recursive: true });
+
+const POINTER_NAME = "data-location";
+
+function dbPathFor(dir: string): string {
+  return path.join(dir, "data.db");
+}
+
+function runsDirFor(dir: string): string {
+  return path.join(dir, "runs");
+}
+
+// Resolve the effective data dir from the anchor's pointer file, falling back to
+// the anchor when there is no pointer or it points at a missing directory.
+export function resolveDataDir(anchor: string): string {
+  try {
+    const pointed = fs.readFileSync(path.join(anchor, POINTER_NAME), "utf8").trim();
+    if (pointed && fs.existsSync(pointed)) return pointed;
+  } catch {
+    // No pointer file — use the anchor.
+  }
+  return anchor;
+}
+
+const dataDir = resolveDataDir(baseDir);
 fs.mkdirSync(dataDir, { recursive: true });
 
 // Both the Anthropic SDK and the Agent SDK read ANTHROPIC_API_KEY; accept the
@@ -14,9 +42,11 @@ const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? process.env.CLAUDE_API_
 if (anthropicApiKey) process.env.ANTHROPIC_API_KEY = anthropicApiKey;
 
 export const env = {
+  baseDir,
+  dataDirPointer: path.join(baseDir, POINTER_NAME),
   dataDir,
-  dbPath: path.join(dataDir, "data.db"),
-  runsDir: path.join(dataDir, "runs"),
+  dbPath: dbPathFor(dataDir),
+  runsDir: runsDirFor(dataDir),
   anthropicApiKey,
   databricksHost: process.env.DATABRICKS_HOST ?? process.env.DATABRICKS_WORKSPACE,
   databricksToken: process.env.DATABRICKS_TOKEN ?? process.env.DATABRICKS_PAT,
@@ -26,3 +56,20 @@ export const env = {
 };
 
 fs.mkdirSync(env.runsDir, { recursive: true });
+
+// Repoint the live env at a relocated data dir. In-memory only; consumers read
+// env.dataDir/dbPath/runsDir at call time, so this takes effect immediately.
+export function applyDataDir(dir: string): void {
+  env.dataDir = dir;
+  env.dbPath = dbPathFor(dir);
+  env.runsDir = runsDirFor(dir);
+}
+
+// Persist (or clear, when back at the anchor) the pointer so the move survives a restart.
+export function persistDataDirPointer(dir: string | null): void {
+  if (dir === null) {
+    fs.rmSync(env.dataDirPointer, { force: true });
+    return;
+  }
+  fs.writeFileSync(env.dataDirPointer, dir);
+}

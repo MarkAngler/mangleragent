@@ -28,4 +28,13 @@ export function db(): Database.Database {
   return database;
 }
 
+// Checkpoint the WAL into the main file and close, so data.db is self-contained
+// and safe to copy. The next db()/initDb() reopens at the current env.dbPath.
+export function closeDb(): void {
+  if (!database) return;
+  database.pragma("wal_checkpoint(TRUNCATE)");
+  database.close();
+  database = null;
+}
+
 export const now = (): number => Date.now();

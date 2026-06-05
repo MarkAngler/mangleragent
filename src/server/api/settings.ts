@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { configRepo } from "../db/config";
 import { env } from "../env";
+import { relocateDataDir } from "../dataDir";
 import { honchoConfigured, honchoWorkspace } from "../honcho";
 import { DEFAULT_MANGLER_MODEL, DEFAULT_MANGLER_SYSTEM, manglerSystemPrompt } from "../agents/mangler";
 
@@ -20,7 +21,24 @@ settingsRouter.get("/settings", (_req, res) => {
     defaultSystemPrompt: DEFAULT_MANGLER_SYSTEM,
     cliAutorun: configRepo.getBool("mangler_cli_autorun", false),
     cliWorkdir: configRepo.get("mangler_cli_workdir") ?? "",
+    dataDir: env.dataDir,
   });
+});
+
+const MoveDataDirInput = z.object({ targetDir: z.string().min(1) });
+
+settingsRouter.post("/settings/data-dir/move", (req, res) => {
+  const parsed = MoveDataDirInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid target directory" });
+    return;
+  }
+  try {
+    const dataDir = relocateDataDir(parsed.data.targetDir);
+    res.json({ ok: true, dataDir });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "move failed" });
+  }
 });
 
 const PatchInput = z.object({
