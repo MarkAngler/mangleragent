@@ -24,7 +24,8 @@ export function ActiveAgentsPage() {
   });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // -my-4 cancels the app shell's py-6 so terminals fill the viewport, leaving an 8px slim margin that matches the grid gap
+    <div className="-my-4 flex min-h-0 flex-1 flex-col">
       <PageHeader
         eyebrow="Orchestration"
         title="Active Agents"

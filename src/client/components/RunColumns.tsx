@@ -38,7 +38,7 @@ export function RunColumns({ runs, projects, maxVisible }: { runs: AgentRun[]; p
   return (
     <>
       <div
-        className="grid min-h-0 flex-1 gap-2 overflow-y-auto pb-2"
+        className="grid min-h-0 flex-1 gap-2 overflow-y-auto"
         style={{ gridTemplateColumns: "repeat(auto-fit, minmax(20rem, 1fr))", gridAutoRows: "minmax(20rem, 1fr)" }}
       >
         {columns.map((column) => {

@@ -45,7 +45,7 @@ export function PageHeader({
 }) {
   if (compact) {
     return (
-      <header className="mb-4 flex items-center justify-between gap-4 border-b border-hairline pb-3">
+      <header className="mb-2 flex items-center justify-between gap-4 border-b border-hairline pb-2">
         <div className="flex min-w-0 items-baseline gap-3">
           <h1 className="text-lg font-semibold tracking-tight text-ink">{title}</h1>
           {description && <p className="hidden truncate text-[12px] text-muted md:block">{description}</p>}
