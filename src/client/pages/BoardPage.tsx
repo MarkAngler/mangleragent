@@ -7,6 +7,7 @@ import { appendPosition, insertPosition } from "../../shared/board";
 import type { AgentRun, Column, GitBranches, GitStatus, Project, RunDiff, Ticket } from "../../shared/types";
 import { Button, Drawer, EmptyState, Input, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { DiffFileList } from "../components/DiffViewer";
+import { usePageTitle } from "../components/PageTitleProvider";
 import { useToast } from "../components/Toast";
 
 // Colons are forbidden in git branch names, so this never collides with a real branch.
@@ -26,6 +27,7 @@ export function BoardPage() {
 
   const { data: project } = useQuery({ queryKey: ["project", projectId], queryFn: () => get<Project>(`/projects/${projectId}`) });
   const { data: tickets = [] } = useQuery({ queryKey: ticketsKey, queryFn: () => get<Ticket[]>(`/tickets?projectId=${projectId}`) });
+  usePageTitle(project?.name ?? "Board");
 
   useWsMessage((msg) => {
     if (msg.type === "board.updated" && msg.projectId === projectId) {

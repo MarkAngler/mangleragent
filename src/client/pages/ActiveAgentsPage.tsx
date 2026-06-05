@@ -6,10 +6,12 @@ import type { AgentRun, Project } from "../../shared/types";
 import { EmptyState, PageHeader } from "../components/ui";
 import { RunListDetail } from "../components/RunListDetail";
 import { RunColumns } from "../components/RunColumns";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 type View = "list" | "columns";
 
 export function ActiveAgentsPage() {
+  usePageTitle("Active Agents");
   const qc = useQueryClient();
   const [view, setView] = useLocalStorage<View>("agents.view", "list");
   const [maxVisible, setMaxVisible] = useLocalStorage<number>("agents.maxVisible", 6);

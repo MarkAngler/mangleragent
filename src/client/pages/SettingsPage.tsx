@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, patch } from "../lib/api";
 import { Button, Card, Input, Mono, PageHeader, StatusDot, Textarea } from "../components/ui";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 interface Settings {
   anthropicConfigured: boolean;
@@ -18,6 +19,7 @@ interface Settings {
 }
 
 export function SettingsPage() {
+  usePageTitle("Settings");
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["settings"], queryFn: () => get<Settings>("/settings") });
 

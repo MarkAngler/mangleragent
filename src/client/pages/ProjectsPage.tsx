@@ -5,8 +5,10 @@ import { del, get, patch, post } from "../lib/api";
 import type { AgentRun, Project } from "../../shared/types";
 import { Button, Card, Drawer, EmptyState, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { FolderPicker } from "../components/FolderPicker";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 export function ProjectsPage() {
+  usePageTitle("Projects");
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);

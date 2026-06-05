@@ -4,6 +4,7 @@ import { get } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import { playChime } from "../lib/chime";
 import { needsInputRuns, diffCompletions, snapshotOf, type AttentionSnapshot } from "../lib/attention";
+import { usePageLabel } from "./PageTitleProvider";
 import { useToast } from "./Toast";
 import type { AgentRun } from "../../shared/types";
 
@@ -29,6 +30,7 @@ export function AttentionProvider({ children }: { children: ReactNode }) {
   const prevSnapshot = useRef<AttentionSnapshot | null>(null);
   const prevNeedsInput = useRef<Set<string>>(new Set());
   const baseTitle = useRef(document.title);
+  const pageLabel = usePageLabel();
 
   useWsMessage((msg) => {
     if (msg.type === "run.updated") {
@@ -73,8 +75,9 @@ export function AttentionProvider({ children }: { children: ReactNode }) {
   }, [runs, needsInput, isSuccess, toast]);
 
   useEffect(() => {
-    document.title = needsInputCount > 0 ? `(${needsInputCount}) ${baseTitle.current}` : baseTitle.current;
-  }, [needsInputCount]);
+    const base = pageLabel ? `${baseTitle.current} – ${pageLabel}` : baseTitle.current;
+    document.title = needsInputCount > 0 ? `(${needsInputCount}) ${base}` : base;
+  }, [needsInputCount, pageLabel]);
 
   return <AttentionContext.Provider value={{ needsInputCount }}>{children}</AttentionContext.Provider>;
 }

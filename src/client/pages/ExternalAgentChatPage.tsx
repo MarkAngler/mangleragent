@@ -5,6 +5,7 @@ import { del, get, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import type { ChatMessage, Conversation, RegisteredAgent } from "../../shared/types";
 import { Button, Mono, StatusDot, Textarea } from "../components/ui";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 const NEW_CHAT = "__new__";
 
@@ -18,6 +19,7 @@ export function ExternalAgentChatPage() {
   const [error, setError] = useState<string | null>(null);
 
   const { data: agent } = useQuery({ queryKey: ["external-agent", id], queryFn: () => get<RegisteredAgent>(`/external-agents/${id}`) });
+  usePageTitle(agent?.name ?? "Agent");
   const { data: conversations = [] } = useQuery({
     queryKey: ["agent-conversations", id],
     queryFn: () => get<Conversation[]>(`/external-agents/${id}/conversations`),

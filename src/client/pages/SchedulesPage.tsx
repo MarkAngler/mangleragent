@@ -4,6 +4,7 @@ import { del, get, patch, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import type { Schedule } from "../../shared/types";
 import { Button, Card, Drawer, EmptyState, Input, Modal, Mono, PageHeader, Textarea } from "../components/ui";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 const CRON_HINT = "5-field cron · e.g. 0 9 * * 1-5 (9am weekdays), */30 * * * * (every 30 min)";
 
@@ -13,6 +14,7 @@ function nextRunLabel(s: Schedule): string {
 }
 
 export function SchedulesPage() {
+  usePageTitle("Schedules");
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);

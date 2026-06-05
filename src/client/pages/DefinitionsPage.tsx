@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, post, put } from "../lib/api";
 import type { DefEntry, DefFile, DefKind, Project } from "../../shared/types";
 import { Button, EmptyState, Modal, Mono, PageHeader, Textarea } from "../components/ui";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 type CopyResult = { target: string; status: "copied" | "exists" | "error"; error?: string };
 
@@ -13,6 +14,7 @@ const KINDS: Array<{ id: DefKind; label: string }> = [
 ];
 
 export function DefinitionsPage() {
+  usePageTitle("Definitions");
   const qc = useQueryClient();
   const [scope, setScope] = useState("global");
   const [kind, setKind] = useState<DefKind>("agent");

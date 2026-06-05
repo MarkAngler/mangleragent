@@ -4,6 +4,7 @@ import { del, get, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import type { ChatMessage, Conversation } from "../../shared/types";
 import { Button, Mono, StatusDot, Textarea } from "../components/ui";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 interface ToolEvent {
   tool: string;
@@ -37,6 +38,7 @@ function lastOpenToolIndex(events: ToolEvent[], tool: string): number {
 }
 
 export function ManglerPage() {
+  usePageTitle("Mangler");
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [input, setInput] = useState("");

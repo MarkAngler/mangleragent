@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
 import type { Note, Project, Task } from "../../shared/types";
 import { Button, Card, Drawer, Input, Mono, PageHeader, Textarea } from "../components/ui";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 export function NotesPage() {
+  usePageTitle("Notes & Tasks");
   const qc = useQueryClient();
   const [scope, setScope] = useState("");
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);

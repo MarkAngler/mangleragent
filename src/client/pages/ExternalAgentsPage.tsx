@@ -5,6 +5,7 @@ import { del, get, patch, post } from "../lib/api";
 import { useToast } from "../components/Toast";
 import type { RegisteredAgent } from "../../shared/types";
 import { Button, Card, Drawer, EmptyState, Input, Modal, Mono, PageHeader, StatusDot, Textarea } from "../components/ui";
+import { usePageTitle } from "../components/PageTitleProvider";
 
 interface AgentInput {
   name: string;
@@ -13,6 +14,7 @@ interface AgentInput {
 }
 
 export function ExternalAgentsPage() {
+  usePageTitle("External Agents");
   const qc = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
