@@ -118,28 +118,86 @@ export async function streamDatabricks(args: {
   return accumulateStream(stream, args.onText);
 }
 
-// Query a registered Databricks agent (a Model Serving endpoint) with a chat
-// history, streaming text via onText. The endpoint is opaque, so no tools are sent.
+// Query a registered Databricks agent (a deployed ResponsesAgent endpoint) with a
+// chat history. Agent endpoints speak the Agent Framework "responses" format — POST
+// { input } to /invocations — not OpenAI chat-completions. Passing conversationId
+// gives the endpoint per-conversation memory; omit it for one-shot, stateless calls.
 export async function invokeDatabricksAgent(args: {
   endpoint: string;
   messages: { role: "user" | "assistant"; content: string }[];
+  conversationId?: string;
   onText?: (text: string) => void;
 }): Promise<string> {
-  const stream = await getClient().chat.completions.create({
-    model: args.endpoint,
-    max_tokens: 4096,
-    messages: args.messages,
-    stream: true,
+  if (!env.databricksHost || !env.databricksToken) throw new Error("Databricks not configured (set DATABRICKS_HOST and DATABRICKS_TOKEN).");
+  const url = `${gatewayBaseUrl(env.databricksHost)}/${args.endpoint}/invocations`;
+  const memory = args.conversationId
+    ? { databricks_options: { conversation_id: args.conversationId }, context: { conversation_id: args.conversationId } }
+    : {};
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.databricksToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ input: args.messages, stream: true, ...memory }),
   });
-  let text = "";
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content;
-    if (delta) {
-      text += delta;
-      args.onText?.(delta);
+  if (!res.ok || !res.body) throw new Error(`Databricks endpoint ${args.endpoint} returned ${res.status}: ${await res.text().catch(() => "")}`);
+  return streamResponsesText(res.body, args.onText ?? (() => {}));
+}
+
+interface ResponsesStreamEvent {
+  type?: string;
+  delta?: string;
+  item?: { content?: { type?: string; text?: string }[] };
+}
+
+// Consume a ResponsesAgent SSE stream, emitting text deltas via onText and returning
+// the full reply. Falls back to completed output items for agents that stream only
+// "response.output_item.done" events without per-token deltas.
+export async function streamResponsesText(body: ReadableStream<Uint8Array>, onText: (text: string) => void): Promise<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let streamed = "";
+  let fallback = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
+    for (const block of blocks) {
+      const event = parseSseData(block);
+      if (!event) continue;
+      if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
+        streamed += event.delta;
+        onText(event.delta);
+      } else if (event.type === "response.output_item.done") {
+        fallback += extractItemText(event.item);
+      }
     }
   }
-  return text;
+  if (streamed) return streamed;
+  if (fallback) onText(fallback);
+  return fallback;
+}
+
+function parseSseData(block: string): ResponsesStreamEvent | null {
+  const payload = block
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim())
+    .join("");
+  if (!payload || payload === "[DONE]") return null;
+  try {
+    return JSON.parse(payload) as ResponsesStreamEvent;
+  } catch {
+    return null;
+  }
+}
+
+function extractItemText(item: ResponsesStreamEvent["item"]): string {
+  return (item?.content ?? [])
+    .filter((c) => c.type === "output_text" && typeof c.text === "string")
+    .map((c) => c.text as string)
+    .join("");
 }
 
 // A plain, tool-free completion for short auxiliary calls (e.g. titling a run).

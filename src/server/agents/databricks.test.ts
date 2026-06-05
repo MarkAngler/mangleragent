@@ -9,7 +9,7 @@ import type OpenAI from "openai";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ma-databricks-test-"));
 process.env.MANGLED_DATA_DIR = tmp;
 
-const { toOpenAiMessages, toOpenAiTools, accumulateStream, gatewayBaseUrl } = await import("./databricks");
+const { toOpenAiMessages, toOpenAiTools, accumulateStream, gatewayBaseUrl, streamResponsesText } = await import("./databricks");
 
 type ChatChunk = OpenAI.Chat.Completions.ChatCompletionChunk;
 
@@ -101,5 +101,47 @@ describe("accumulateStream", () => {
     const result = await accumulateStream(stream(), () => {});
     expect(result.stopReason).toBe("end");
     expect(result.content).toEqual([{ type: "text", text: "just text" }]);
+  });
+});
+
+function sseStream(chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      for (const c of chunks) controller.enqueue(encoder.encode(c));
+      controller.close();
+    },
+  });
+}
+
+function deltaEvent(text: string): string {
+  return `data: ${JSON.stringify({ type: "response.output_text.delta", delta: text })}\n\n`;
+}
+
+describe("streamResponsesText", () => {
+  it("accumulates output_text deltas in order, emitting each via onText", async () => {
+    const seen: string[] = [];
+    // The middle event is split across read boundaries to exercise buffering.
+    const reply = await streamResponsesText(
+      sseStream([deltaEvent("Hello"), 'data: {"type":"response.output_text.delta","delta":"', ', world"}\n\n', deltaEvent("!")]),
+      (t) => seen.push(t),
+    );
+    expect(reply).toBe("Hello, world!");
+    expect(seen).toEqual(["Hello", ", world", "!"]);
+  });
+
+  it("falls back to completed output items when no deltas are streamed", async () => {
+    const seen: string[] = [];
+    const done = { type: "response.output_item.done", item: { content: [{ type: "output_text", text: "Final answer" }] } };
+    const reply = await streamResponsesText(sseStream([`data: ${JSON.stringify(done)}\n\n`]), (t) => seen.push(t));
+    expect(reply).toBe("Final answer");
+    expect(seen).toEqual(["Final answer"]);
+  });
+
+  it("ignores [DONE] sentinels and malformed data lines", async () => {
+    const seen: string[] = [];
+    const reply = await streamResponsesText(sseStream([deltaEvent("ok"), "data: not-json\n\n", "data: [DONE]\n\n"]), (t) => seen.push(t));
+    expect(reply).toBe("ok");
+    expect(seen).toEqual(["ok"]);
   });
 });

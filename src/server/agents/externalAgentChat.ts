@@ -22,7 +22,7 @@ export async function runExternalAgentTurn(conversationId: string): Promise<void
 
   try {
     const onText = (text: string) => broadcast({ type: "agent.delta", conversationId, text });
-    const reply = await invokeDatabricksAgent({ endpoint: agent.endpoint, messages, onText });
+    const reply = await invokeDatabricksAgent({ endpoint: agent.endpoint, messages, conversationId, onText });
     messagesRepo.add(conversationId, "assistant", reply);
     broadcast({ type: "agent.done", conversationId });
   } catch (err) {
