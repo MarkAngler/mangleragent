@@ -74,6 +74,9 @@ function summarize(name: string, output: unknown): string | undefined {
       return `note "${String(out.title ?? "")}"`;
     case "create_task":
       return `task "${String(out.title ?? "")}"`;
+    case "update_note":
+    case "update_task":
+      return `updated "${String(out.title ?? "")}"`;
     case "create_schedule":
       return `scheduled "${String(out.title ?? "")}"`;
     case "load_skill":

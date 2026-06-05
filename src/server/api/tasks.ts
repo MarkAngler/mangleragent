@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { tasksRepo } from "../db/tasks";
+import { broadcast } from "../realtime/hub";
 import { CreateTaskInput, UpdateTaskInput } from "../../shared/types";
 
 export const tasksRouter = Router();
@@ -14,7 +15,9 @@ tasksRouter.post("/tasks", (req, res) => {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "invalid input" });
     return;
   }
-  res.status(201).json(tasksRepo.create(parsed.data));
+  const task = tasksRepo.create(parsed.data);
+  broadcast({ type: "tasks.updated" });
+  res.status(201).json(task);
 });
 
 tasksRouter.patch("/tasks/:id", (req, res) => {
@@ -28,9 +31,12 @@ tasksRouter.patch("/tasks/:id", (req, res) => {
     res.status(404).json({ error: "task not found" });
     return;
   }
+  broadcast({ type: "tasks.updated" });
   res.json(task);
 });
 
 tasksRouter.delete("/tasks/:id", (req, res) => {
-  res.status(tasksRepo.remove(req.params.id) ? 204 : 404).end();
+  const removed = tasksRepo.remove(req.params.id);
+  if (removed) broadcast({ type: "tasks.updated" });
+  res.status(removed ? 204 : 404).end();
 });

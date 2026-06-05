@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
+import { useWsMessage } from "../lib/ws";
 import type { Note, Project, Task } from "../../shared/types";
 import { Button, Card, Input, Mono, PageHeader, Textarea } from "../components/ui";
 import { MarkdownPreview } from "../components/MarkdownPreview";
@@ -16,6 +17,10 @@ export function NotesPage() {
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => get<Project[]>("/projects") });
   const { data: notes = [] } = useQuery({ queryKey: ["notes"], queryFn: () => get<Note[]>("/notes") });
   const { data: tasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: () => get<Task[]>("/tasks") });
+  useWsMessage((msg) => {
+    if (msg.type === "notes.updated") void qc.invalidateQueries({ queryKey: ["notes"] });
+    if (msg.type === "tasks.updated") void qc.invalidateQueries({ queryKey: ["tasks"] });
+  });
 
   const scopeProjectId = scope && scope !== "global" ? scope : null;
   const inScope = (pid: string | null) => scope === "" || (scope === "global" ? pid === null : pid === scope);

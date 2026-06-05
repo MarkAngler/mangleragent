@@ -14,7 +14,7 @@ import { commit, push } from "../git";
 import { startOrchestratedRun } from "./orchestrator";
 import { invokeDatabricksAgent } from "./databricks";
 import { isValidCron, nextRun } from "../cron";
-import { Approver } from "../../shared/types";
+import { Approver, UpdateNoteInput, UpdateTaskInput } from "../../shared/types";
 import { runManglerCommand } from "./manglerCommands";
 
 export interface ToolContext {
@@ -129,7 +129,22 @@ const defs: ErasedTool[] = [
     name: "create_note",
     description: "Create a note. Omit projectId for a global note.",
     schema: z.object({ title: z.string(), body: z.string().optional(), projectId: z.string().nullable().optional() }),
-    handler: (input) => notesRepo.create(input),
+    handler: (input) => {
+      const note = notesRepo.create(input);
+      broadcast({ type: "notes.updated" });
+      return note;
+    },
+  }),
+  tool({
+    name: "update_note",
+    description: "Update a note's title or body.",
+    schema: z.object({ noteId: z.string(), ...UpdateNoteInput.shape }),
+    handler: ({ noteId, ...patch }) => {
+      const updated = notesRepo.update(noteId, patch);
+      if (!updated) return { error: "note not found" };
+      broadcast({ type: "notes.updated" });
+      return updated;
+    },
   }),
   tool({
     name: "list_tasks",
@@ -141,7 +156,22 @@ const defs: ErasedTool[] = [
     name: "create_task",
     description: "Create a task. Omit projectId for a global task.",
     schema: z.object({ title: z.string(), projectId: z.string().nullable().optional() }),
-    handler: (input) => tasksRepo.create(input),
+    handler: (input) => {
+      const task = tasksRepo.create(input);
+      broadcast({ type: "tasks.updated" });
+      return task;
+    },
+  }),
+  tool({
+    name: "update_task",
+    description: "Update a task's title, done status, or due date.",
+    schema: z.object({ taskId: z.string(), ...UpdateTaskInput.shape }),
+    handler: ({ taskId, ...patch }) => {
+      const updated = tasksRepo.update(taskId, patch);
+      if (!updated) return { error: "task not found" };
+      broadcast({ type: "tasks.updated" });
+      return updated;
+    },
   }),
   tool({
     name: "delegate_ticket",

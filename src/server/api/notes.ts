@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { notesRepo } from "../db/notes";
+import { broadcast } from "../realtime/hub";
 import { CreateNoteInput, UpdateNoteInput } from "../../shared/types";
 
 export const notesRouter = Router();
@@ -14,7 +15,9 @@ notesRouter.post("/notes", (req, res) => {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "invalid input" });
     return;
   }
-  res.status(201).json(notesRepo.create(parsed.data));
+  const note = notesRepo.create(parsed.data);
+  broadcast({ type: "notes.updated" });
+  res.status(201).json(note);
 });
 
 notesRouter.patch("/notes/:id", (req, res) => {
@@ -28,9 +31,12 @@ notesRouter.patch("/notes/:id", (req, res) => {
     res.status(404).json({ error: "note not found" });
     return;
   }
+  broadcast({ type: "notes.updated" });
   res.json(note);
 });
 
 notesRouter.delete("/notes/:id", (req, res) => {
-  res.status(notesRepo.remove(req.params.id) ? 204 : 404).end();
+  const removed = notesRepo.remove(req.params.id);
+  if (removed) broadcast({ type: "notes.updated" });
+  res.status(removed ? 204 : 404).end();
 });
