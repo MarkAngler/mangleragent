@@ -140,7 +140,7 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 
 #### [MA-002] Prompt Caching for Mangler System Prompt and Definitions
 - **Date:** 2026-06-07
-- **Status:** Planned ← **(Selected — see Implementation Plan below)**
+- **Status:** Done
 - **Enabling advancement:** Anthropic prompt caching (cache reads at 0.1× input price; 90% discount; workspace-isolated since Feb 2026)
 - **Gap addressed:** Every Mangler turn re-sends the full system prompt + definitions content as fresh input tokens. The system prompt (`DEFAULT_MANGLER_SYSTEM` + `manglerDefinitionsPrompt()`) is static within a session and across many turns. This is pure wasted spend.
 - **User benefit:** 60–90% cost reduction on the stable prefix (system prompt + definitions) for every active user on every Mangler turn. No behavioral change. Negligible implementation risk.

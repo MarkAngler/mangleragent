@@ -128,7 +128,13 @@ export async function runMangler(conversationId: string, modelOverride?: string)
         content = result.content;
         isToolUse = result.stopReason === "tool_use";
       } else {
-        const stream = getAnthropic().messages.stream({ model, max_tokens: 4096, system, tools: anthropicTools, messages });
+        const stream = getAnthropic().messages.stream({
+          model,
+          max_tokens: 4096,
+          system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+          tools: anthropicTools,
+          messages,
+        });
         stream.on("text", onText);
         const final = await stream.finalMessage();
         content = final.content;
