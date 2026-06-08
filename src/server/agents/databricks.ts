@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { env } from "../env";
-import { anthropicTools } from "./manglerTools";
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 type ChatTool = OpenAI.Chat.Completions.ChatCompletionTool;
@@ -62,8 +61,8 @@ export function toOpenAiMessages(system: string, messages: Anthropic.MessagePara
   return out;
 }
 
-export function toOpenAiTools(): ChatTool[] {
-  return anthropicTools.map((t) => ({
+export function toOpenAiTools(tools: Anthropic.Tool[]): ChatTool[] {
+  return tools.map((t) => ({
     type: "function",
     function: { name: t.name, description: t.description, parameters: t.input_schema as Record<string, unknown> },
   }));
@@ -110,13 +109,14 @@ export async function streamDatabricks(args: {
   model: string;
   system: string;
   messages: Anthropic.MessageParam[];
+  tools: Anthropic.Tool[];
   onText: (text: string) => void;
 }): Promise<ManglerCompletion> {
   const stream = await getClient().chat.completions.create({
     model: args.model,
     max_tokens: 4096,
     messages: toOpenAiMessages(args.system, args.messages),
-    tools: toOpenAiTools(),
+    tools: toOpenAiTools(args.tools),
     stream: true,
   });
   return accumulateStream(stream, args.onText);

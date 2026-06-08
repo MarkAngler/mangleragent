@@ -10,6 +10,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ma-databricks-test-"));
 process.env.MANGLED_DATA_DIR = tmp;
 
 const { toOpenAiMessages, toOpenAiTools, accumulateStream, gatewayBaseUrl, workspaceBaseUrl, streamResponsesText } = await import("./databricks");
+const { anthropicTools } = await import("./manglerTools");
 
 type ChatChunk = OpenAI.Chat.Completions.ChatCompletionChunk;
 
@@ -74,7 +75,7 @@ describe("toOpenAiMessages", () => {
 
 describe("toOpenAiTools", () => {
   it("exposes the Mangler tools as OpenAI function tools", () => {
-    const tools = toOpenAiTools();
+    const tools = toOpenAiTools(anthropicTools);
     const names = tools.flatMap((t) => (t.type === "function" ? [t.function.name] : []));
     expect(names).toContain("list_projects");
     expect(names.length).toBe(tools.length);

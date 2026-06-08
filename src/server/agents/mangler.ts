@@ -8,6 +8,7 @@ import { listDefs, readDef, MANGLER_SCOPE } from "../defs";
 import { getAnthropic } from "./anthropic";
 import { streamDatabricks } from "./databricks";
 import { anthropicTools, runTool } from "./manglerTools";
+import { loadMcpToolset } from "./mcp";
 
 const MEMORY_QUERY =
   "Summarize what you know about this user that helps you assist them: their projects, preferences, working style, and ongoing priorities. Be concise.";
@@ -118,13 +119,18 @@ export async function runMangler(conversationId: string, modelOverride?: string)
 
   let assistantText = "";
 
+  // Merge the tools of every enabled MCP server into Mangler's built-in toolset. A
+  // registered server that is unreachable contributes nothing rather than failing the turn.
+  const mcp = await loadMcpToolset();
+  const tools = [...anthropicTools, ...mcp.tools];
+
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       const onText = (text: string) => broadcast({ type: "mangler.delta", conversationId, text });
       let content: Anthropic.ContentBlockParam[];
       let isToolUse: boolean;
       if (provider === "databricks") {
-        const result = await streamDatabricks({ model, system, messages, onText });
+        const result = await streamDatabricks({ model, system, messages, tools, onText });
         content = result.content;
         isToolUse = result.stopReason === "tool_use";
       } else {
@@ -132,7 +138,7 @@ export async function runMangler(conversationId: string, modelOverride?: string)
           model,
           max_tokens: 4096,
           system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-          tools: anthropicTools,
+          tools,
           messages,
         });
         stream.on("text", onText);
@@ -151,7 +157,9 @@ export async function runMangler(conversationId: string, modelOverride?: string)
       for (const block of content) {
         if (block.type !== "tool_use") continue;
         broadcast({ type: "mangler.tool", conversationId, tool: block.name, phase: "start" });
-        const output = await runTool(block.name, block.input, { conversationId });
+        const output = mcp.has(block.name)
+          ? await mcp.call(block.name, block.input)
+          : await runTool(block.name, block.input, { conversationId });
         results.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(output) });
         broadcast({ type: "mangler.tool", conversationId, tool: block.name, phase: "done", summary: summarize(block.name, output) });
       }

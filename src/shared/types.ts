@@ -314,6 +314,59 @@ export const UpdateRegisteredAgentInput = z.object({
 });
 export type UpdateRegisteredAgentInput = z.infer<typeof UpdateRegisteredAgentInput>;
 
+// External MCP (Model Context Protocol) servers Mangler can connect to. The
+// transport selects which fields apply: "stdio" spawns a local process
+// (command/args/env); "http" and "sse" reach a remote url (url/headers).
+export const McpTransport = z.enum(["stdio", "http", "sse"]);
+export type McpTransport = z.infer<typeof McpTransport>;
+
+export const McpServer = z.object({
+  id: z.string(),
+  name: z.string(),
+  transport: McpTransport,
+  command: z.string(),
+  args: z.array(z.string()),
+  env: z.record(z.string(), z.string()),
+  url: z.string(),
+  headers: z.record(z.string(), z.string()),
+  enabled: z.boolean(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type McpServer = z.infer<typeof McpServer>;
+
+export const CreateMcpServerInput = z
+  .object({
+    name: z.string().min(1),
+    transport: McpTransport,
+    command: z.string().optional(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    url: z.string().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    enabled: z.boolean().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.transport === "stdio") {
+      if (!val.command?.trim()) ctx.addIssue({ code: "custom", message: "command is required for stdio transport", path: ["command"] });
+    } else if (!val.url?.trim()) {
+      ctx.addIssue({ code: "custom", message: "url is required for http/sse transport", path: ["url"] });
+    }
+  });
+export type CreateMcpServerInput = z.infer<typeof CreateMcpServerInput>;
+
+export const UpdateMcpServerInput = z.object({
+  name: z.string().min(1).optional(),
+  transport: McpTransport.optional(),
+  command: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  url: z.string().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  enabled: z.boolean().optional(),
+});
+export type UpdateMcpServerInput = z.infer<typeof UpdateMcpServerInput>;
+
 export const ChatMessage = z.object({
   id: z.string(),
   conversationId: z.string(),

@@ -52,6 +52,21 @@ CREATE TABLE IF NOT EXISTS registered_agents (
   updated_at  INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  -- No CHECK: the McpTransport Zod enum gates this at the POST boundary.
+  transport   TEXT NOT NULL,
+  command     TEXT NOT NULL DEFAULT '',
+  args_json   TEXT NOT NULL DEFAULT '[]',
+  env_json    TEXT NOT NULL DEFAULT '{}',
+  url         TEXT NOT NULL DEFAULT '',
+  headers_json TEXT NOT NULL DEFAULT '{}',
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
   id                   TEXT PRIMARY KEY,
   title                TEXT NOT NULL DEFAULT 'New conversation',

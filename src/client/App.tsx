@@ -9,6 +9,7 @@ import { BoardPage } from "./pages/BoardPage";
 import { ActiveAgentsPage } from "./pages/ActiveAgentsPage";
 import { ExternalAgentsPage } from "./pages/ExternalAgentsPage";
 import { ExternalAgentChatPage } from "./pages/ExternalAgentChatPage";
+import { McpServersPage } from "./pages/McpServersPage";
 import { NotesPage } from "./pages/NotesPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 import { DefinitionsPage } from "./pages/DefinitionsPage";
@@ -27,6 +28,7 @@ export function App() {
               <Route path="/agents" element={<ActiveAgentsPage />} />
               <Route path="/external-agents" element={<ExternalAgentsPage />} />
               <Route path="/external-agents/:id" element={<ExternalAgentChatPage />} />
+              <Route path="/mcp-servers" element={<McpServersPage />} />
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/definitions" element={<DefinitionsPage />} />

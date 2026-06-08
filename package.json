@@ -42,6 +42,7 @@
     "@anthropic-ai/sdk": "^0.100.1",
     "@honcho-ai/sdk": "^2.1.2",
     "@lydell/node-pty": "^1.2.0-beta.12",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.10.0",
     "cron-parser": "^5.5.0",
     "dotenv": "^17.4.2",
