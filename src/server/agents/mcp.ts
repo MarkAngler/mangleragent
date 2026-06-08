@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -168,6 +169,26 @@ export async function loadMcpToolset(): Promise<McpToolset> {
       }
     },
   };
+}
+
+// Map the given stored MCP servers into the shape the Agent SDK's `mcpServers` option expects,
+// keyed by sanitized server name. Used to grant a task agent exactly its configured servers.
+// Unknown ids are skipped; servers needn't be enabled (an agent picks its own servers explicitly).
+export function toSdkMcpServers(serverIds: string[]): Record<string, McpServerConfig> {
+  const result: Record<string, McpServerConfig> = {};
+  for (const id of serverIds) {
+    const server = mcpServersRepo.get(id);
+    if (!server) continue;
+    const key = sanitizeMcpName(server.name);
+    if (server.transport === "stdio") {
+      result[key] = { type: "stdio", command: server.command, args: server.args, env: server.env };
+    } else if (server.transport === "sse") {
+      result[key] = { type: "sse", url: server.url, headers: server.headers };
+    } else {
+      result[key] = { type: "http", url: server.url, headers: server.headers };
+    }
+  }
+  return result;
 }
 
 // Connect to a server outside the cache to verify its config and report its tools.

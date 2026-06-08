@@ -66,6 +66,18 @@ export function ManglerPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, toolEvents]);
 
+  const rootRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLElement | null>(null);
+  const [showTop, setShowTop] = useState(false);
+  useEffect(() => {
+    const scroller = rootRef.current?.closest("main");
+    if (!scroller) return;
+    scrollerRef.current = scroller;
+    const onScroll = () => setShowTop(scroller.scrollTop > 300);
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, []);
+
   useWsMessage((msg) => {
     if (!("conversationId" in msg) || msg.conversationId !== activeIdRef.current) return;
     if (msg.type === "mangler.delta") setStreamingText((s) => s + msg.text);
@@ -135,7 +147,7 @@ export function ManglerPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <header className="mb-6 flex items-end justify-between gap-6 border-b border-hairline pb-5">
         <div>
           <div className="flex items-center gap-2">
@@ -233,6 +245,17 @@ export function ManglerPage() {
           </Button>
         </div>
       </div>
+
+      {showTop && (
+        <button
+          type="button"
+          onClick={() => scrollerRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+          title="Back to top"
+          className="fixed bottom-24 right-8 z-30 inline-flex items-center gap-1.5 rounded-full border border-hairline-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-lg transition-colors hover:bg-paper"
+        >
+          ↑ Top
+        </button>
+      )}
     </div>
   );
 }

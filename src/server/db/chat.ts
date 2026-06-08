@@ -6,11 +6,12 @@ interface ConversationRow {
   id: string;
   title: string;
   agent_id: string | null;
+  local_agent_id: string | null;
   created_at: number;
 }
 
 function toConversation(r: ConversationRow): Conversation {
-  return { id: r.id, title: r.title, agentId: r.agent_id, createdAt: r.created_at };
+  return { id: r.id, title: r.title, agentId: r.agent_id, localAgentId: r.local_agent_id, createdAt: r.created_at };
 }
 
 interface MessageRow {
@@ -22,11 +23,13 @@ interface MessageRow {
 }
 
 export const conversationsRepo = {
-  // Mangler's own conversations only; external-agent chats (agent_id set) are listed per agent.
+  // Mangler's own conversations only; agent chats (agent_id / local_agent_id set) are listed per agent.
   list(): Conversation[] {
-    return (db().prepare("SELECT * FROM conversations WHERE agent_id IS NULL ORDER BY created_at DESC").all() as ConversationRow[]).map(
-      toConversation,
-    );
+    return (
+      db()
+        .prepare("SELECT * FROM conversations WHERE agent_id IS NULL AND local_agent_id IS NULL ORDER BY created_at DESC")
+        .all() as ConversationRow[]
+    ).map(toConversation);
   },
 
   listByAgent(agentId: string): Conversation[] {
@@ -35,16 +38,22 @@ export const conversationsRepo = {
     );
   },
 
+  listByLocalAgent(localAgentId: string): Conversation[] {
+    return (
+      db().prepare("SELECT * FROM conversations WHERE local_agent_id = ? ORDER BY created_at DESC").all(localAgentId) as ConversationRow[]
+    ).map(toConversation);
+  },
+
   get(id: string): Conversation | undefined {
     const r = db().prepare("SELECT * FROM conversations WHERE id = ?").get(id) as ConversationRow | undefined;
     return r ? toConversation(r) : undefined;
   },
 
-  create(title = "New conversation", agentId: string | null = null): Conversation {
-    const conv: Conversation = { id: randomUUID(), title, agentId, createdAt: now() };
+  create(title = "New conversation", agentId: string | null = null, localAgentId: string | null = null): Conversation {
+    const conv: Conversation = { id: randomUUID(), title, agentId, localAgentId, createdAt: now() };
     db()
-      .prepare("INSERT INTO conversations (id, title, agent_id, created_at) VALUES (?, ?, ?, ?)")
-      .run(conv.id, conv.title, conv.agentId, conv.createdAt);
+      .prepare("INSERT INTO conversations (id, title, agent_id, local_agent_id, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(conv.id, conv.title, conv.agentId, conv.localAgentId, conv.createdAt);
     return conv;
   },
 
@@ -71,6 +80,19 @@ export const conversationsRepo = {
 
   setGenieConversationId(id: string, genieConversationId: string): void {
     db().prepare("UPDATE conversations SET genie_conversation_id = ? WHERE id = ?").run(genieConversationId, id);
+  },
+
+  // SDK session id for a local-agent chat; persisted so follow-up turns resume the same session.
+  // Server-only — not part of the shared Conversation type sent to clients.
+  getAgentSessionId(id: string): string | null {
+    const row = db().prepare("SELECT agent_sdk_session_id FROM conversations WHERE id = ?").get(id) as
+      | { agent_sdk_session_id: string | null }
+      | undefined;
+    return row?.agent_sdk_session_id ?? null;
+  },
+
+  setAgentSessionId(id: string, sessionId: string): void {
+    db().prepare("UPDATE conversations SET agent_sdk_session_id = ? WHERE id = ?").run(sessionId, id);
   },
 };
 

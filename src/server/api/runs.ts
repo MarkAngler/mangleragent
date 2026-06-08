@@ -6,7 +6,8 @@ import { ticketsRepo } from "../db/tickets";
 import { eventsRepo } from "../db/events";
 import { permissionsRepo } from "../db/permissions";
 import { startPtySession, stopPtySession, isPtyAlive } from "../agents/pty";
-import { startOrchestratedRun, stopOrchestratedRun, decideApproval } from "../agents/orchestrator";
+import { startOrchestratedRun } from "../agents/orchestrator";
+import { decideApproval, stopRun } from "../agents/runEngine";
 import { truncateForTitle } from "../agents/runTitle";
 import { runDiff } from "../git";
 import { broadcast } from "../realtime/hub";
@@ -138,8 +139,8 @@ runsRouter.post("/runs/:id/stop", (req, res) => {
     res.status(404).json({ error: "run not found" });
     return;
   }
-  if (run.kind === "orchestrated") {
-    stopOrchestratedRun(run.id);
+  if (run.kind === "orchestrated" || run.kind === "agent") {
+    stopRun(run.id);
   } else if (!stopPtySession(run.id)) {
     runsRepo.setStatus(run.id, "stopped");
     broadcast({ type: "run.updated", runId: run.id });
@@ -149,6 +150,6 @@ runsRouter.post("/runs/:id/stop", (req, res) => {
 
 runsRouter.delete("/runs/:id", (req, res) => {
   stopPtySession(req.params.id);
-  stopOrchestratedRun(req.params.id);
+  stopRun(req.params.id);
   res.status(runsRepo.remove(req.params.id) ? 204 : 404).end();
 });

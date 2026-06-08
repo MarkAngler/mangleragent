@@ -1,7 +1,10 @@
 import { schedulesRepo } from "./db/schedules";
 import { conversationsRepo, messagesRepo } from "./db/chat";
+import { agentsRepo } from "./db/agents";
+import { runsRepo } from "./db/runs";
 import { broadcast } from "./realtime/hub";
 import { runMangler } from "./agents/mangler";
+import { startAgentRun, agentWorkspaceDir } from "./agents/agentRun";
 import { nextRun } from "./cron";
 import type { Schedule } from "../shared/types";
 
@@ -10,12 +13,17 @@ const TICK_MS = 30_000;
 // Guards against a slow Mangler run overlapping its own next fire.
 const inFlight = new Set<string>();
 
-// Run a schedule's prompt through Mangler in its dedicated conversation. Does NOT advance
-// next_run_at — cron advancement is the scheduler's job (so manual "run now" can reuse this).
+// Run a schedule's occurrence. A schedule either runs a specific agent directly (agentId set) or
+// runs its prompt through Mangler in a dedicated conversation. Does NOT advance next_run_at — cron
+// advancement is the scheduler's job (so manual "run now" can reuse this).
 export async function fireSchedule(schedule: Schedule): Promise<void> {
   if (inFlight.has(schedule.id)) return;
   inFlight.add(schedule.id);
   try {
+    if (schedule.agentId) {
+      await fireAgentSchedule(schedule);
+      return;
+    }
     let conversationId = schedule.conversationId;
     if (!conversationId || !conversationsRepo.get(conversationId)) {
       conversationId = conversationsRepo.create(`⏰ ${schedule.title}`).id;
@@ -28,6 +36,25 @@ export async function fireSchedule(schedule: Schedule): Promise<void> {
   } finally {
     inFlight.delete(schedule.id);
   }
+}
+
+async function fireAgentSchedule(schedule: Schedule): Promise<void> {
+  const agent = schedule.agentId ? agentsRepo.get(schedule.agentId) : undefined;
+  if (!agent) return; // agent was deleted; skip silently until the schedule is edited
+  const run = runsRepo.create({
+    kind: "agent",
+    title: agent.name,
+    status: "running",
+    approver: agent.approval === "human" ? "human" : "agent",
+    permissionMode: "default",
+    model: agent.model,
+    cwd: agentWorkspaceDir(),
+    agentDef: agent.id,
+  });
+  schedulesRepo.markRan(schedule.id, Date.now());
+  broadcast({ type: "schedule.updated", scheduleId: schedule.id });
+  broadcast({ type: "run.updated", runId: run.id });
+  await startAgentRun(run, schedule.prompt, agent);
 }
 
 function tick(): void {

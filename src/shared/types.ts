@@ -123,6 +123,8 @@ export const Schedule = z.object({
   prompt: z.string(),
   cron: z.string(),
   conversationId: z.string().nullable(),
+  // When set, each occurrence runs this agent directly with `prompt` instead of running Mangler.
+  agentId: z.string().nullable(),
   enabled: z.boolean(),
   lastRunAt: z.number().nullable(),
   nextRunAt: z.number().nullable(),
@@ -135,6 +137,7 @@ export const CreateScheduleInput = z.object({
   title: z.string().min(1),
   prompt: z.string().min(1),
   cron: z.string().min(1),
+  agentId: z.string().nullable().optional(),
   enabled: z.boolean().optional(),
 });
 export type CreateScheduleInput = z.infer<typeof CreateScheduleInput>;
@@ -143,11 +146,12 @@ export const UpdateScheduleInput = z.object({
   title: z.string().min(1).optional(),
   prompt: z.string().min(1).optional(),
   cron: z.string().min(1).optional(),
+  agentId: z.string().nullable().optional(),
   enabled: z.boolean().optional(),
 });
 export type UpdateScheduleInput = z.infer<typeof UpdateScheduleInput>;
 
-export const AgentRunKind = z.enum(["pty", "orchestrated"]);
+export const AgentRunKind = z.enum(["pty", "orchestrated", "agent"]);
 export type AgentRunKind = z.infer<typeof AgentRunKind>;
 
 // Which interactive coding-agent CLI a pty terminal spawns. Null on orchestrated runs.
@@ -277,10 +281,67 @@ export type DecideInput = z.infer<typeof DecideInput>;
 export const Conversation = z.object({
   id: z.string(),
   title: z.string(),
+  // External (Databricks) agent this chat targets, if any.
   agentId: z.string().nullable(),
+  // Local SDK agent this chat targets, if any. At most one of agentId/localAgentId is set.
+  localAgentId: z.string().nullable(),
   createdAt: z.number(),
 });
 export type Conversation = z.infer<typeof Conversation>;
+
+// Specialized agents built inside the app and run locally on the Claude Agent SDK.
+// "task" agents are non-coding: they work through their selected MCP servers with
+// file-editing tools disabled. "coding" agents reuse the orchestrator's edit flow.
+export const AgentType = z.enum(["task", "coding"]);
+export type AgentType = z.infer<typeof AgentType>;
+
+// How a task agent's tool calls are gated: "none" runs freely (read-only review
+// agents); "agent" lets Mangler review each call; "human" routes them to the user.
+export const AgentApproval = z.enum(["none", "agent", "human"]);
+export type AgentApproval = z.infer<typeof AgentApproval>;
+
+export const Agent = z.object({
+  id: z.string(),
+  type: AgentType,
+  name: z.string(),
+  // What the agent is for and when to use it — also shown to Mangler so it can route to it.
+  description: z.string(),
+  systemPrompt: z.string(),
+  model: z.string().nullable(),
+  mcpServerIds: z.array(z.string()),
+  approval: AgentApproval,
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Agent = z.infer<typeof Agent>;
+
+export const CreateAgentInput = z.object({
+  type: AgentType.optional(),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  systemPrompt: z.string().optional(),
+  model: z.string().nullable().optional(),
+  mcpServerIds: z.array(z.string()).optional(),
+  approval: AgentApproval.optional(),
+});
+export type CreateAgentInput = z.infer<typeof CreateAgentInput>;
+
+export const UpdateAgentInput = z.object({
+  type: AgentType.optional(),
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  systemPrompt: z.string().optional(),
+  model: z.string().nullable().optional(),
+  mcpServerIds: z.array(z.string()).optional(),
+  approval: AgentApproval.optional(),
+});
+export type UpdateAgentInput = z.infer<typeof UpdateAgentInput>;
+
+export const RunAgentInput = z.object({
+  prompt: z.string().min(1),
+  projectId: z.string().nullable().optional(),
+});
+export type RunAgentInput = z.infer<typeof RunAgentInput>;
 
 // External agents registered with the app. `endpoint` is the provider's target
 // identifier: a Model Serving endpoint name for "databricks", or a Genie space id

@@ -26,6 +26,7 @@ schedulesRouter.post("/schedules", (req, res) => {
     title: parsed.data.title,
     prompt: parsed.data.prompt,
     cron: parsed.data.cron,
+    agentId: parsed.data.agentId ?? null,
     enabled,
     nextRunAt: enabled ? nextRun(parsed.data.cron) : null,
   });

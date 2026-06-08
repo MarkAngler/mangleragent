@@ -5,6 +5,7 @@ import { configRepo } from "../db/config";
 import { broadcast } from "../realtime/hub";
 import { recallUserMemory, recordTurn } from "../honcho";
 import { listDefs, readDef, MANGLER_SCOPE } from "../defs";
+import { agentsRepo } from "../db/agents";
 import { getAnthropic } from "./anthropic";
 import { streamDatabricks } from "./databricks";
 import { anthropicTools, runTool } from "./manglerTools";
@@ -59,6 +60,18 @@ export function manglerDefinitionsPrompt(): string {
   return addon;
 }
 
+// The specialized agents the user has built. Listed so Mangler can route work to the right one:
+// hand matching tasks to the best-fit agent via delegate_to_agent, and fall back to delegate_ticket
+// for general coding. Recomputed each turn so newly built agents are available immediately.
+export function manglerAgentsPrompt(): string {
+  const agents = agentsRepo.list();
+  if (!agents.length) return "";
+  let addon =
+    "\n\n## Specialized agents\nThe user has built these agents. When a request matches one, delegate to it with delegate_to_agent (a 'task' agent is non-coding and works through tools; a 'coding' agent edits files). Use delegate_ticket for general coding on a project.\n";
+  for (const a of agents) addon += `- ${a.name} [${a.type}]: ${a.description}\n`;
+  return addon;
+}
+
 const MAX_TURNS = 12;
 
 function summarize(name: string, output: unknown): string | undefined {
@@ -84,6 +97,8 @@ function summarize(name: string, output: unknown): string | undefined {
       return `loaded "${String(out.name ?? "")}"`;
     case "ask_external_agent":
       return "replied";
+    case "delegate_to_agent":
+      return out.agent ? `started ${String(out.agent)}` : undefined;
     case "run_command":
       return "denied" in out ? "denied" : `exit ${String(out.exitCode ?? "?")}`;
     default:
@@ -113,7 +128,7 @@ export async function runMangler(conversationId: string, modelOverride?: string)
   const lastUser = [...history].reverse().find((m) => m.role === "user" && typeof m.content === "string");
   const userText = typeof lastUser?.content === "string" ? lastUser.content : "";
 
-  let system = manglerSystemPrompt() + manglerDefinitionsPrompt();
+  let system = manglerSystemPrompt() + manglerDefinitionsPrompt() + manglerAgentsPrompt();
   const memory = await recallUserMemory(MEMORY_QUERY);
   if (memory) system += `\n\n## Memory about the user (from honcho)\n${memory}`;
 

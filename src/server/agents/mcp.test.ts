@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -7,7 +7,9 @@ import fs from "node:fs";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ma-mcp-test-"));
 process.env.MANGLED_DATA_DIR = tmp;
 
-const { sanitizeMcpName, mcpToolName } = await import("./mcp");
+const { initDb } = await import("../db/index");
+const { mcpServersRepo } = await import("../db/mcpServers");
+const { sanitizeMcpName, mcpToolName, toSdkMcpServers } = await import("./mcp");
 const { CreateMcpServerInput } = await import("../../shared/types");
 
 describe("sanitizeMcpName", () => {
@@ -31,6 +33,25 @@ describe("mcpToolName", () => {
     const name = mcpToolName("s".repeat(200), "t".repeat(200));
     expect(name.length).toBe(128);
     expect(name.startsWith("mcp__")).toBe(true);
+  });
+});
+
+describe("toSdkMcpServers", () => {
+  beforeAll(() => {
+    initDb();
+  });
+
+  it("maps each transport to its SDK config shape, keyed by sanitized name, skipping unknown ids", () => {
+    const stdio = mcpServersRepo.create({ name: "My FS", transport: "stdio", command: "npx", args: ["-y", "server"], env: { K: "v" } });
+    const http = mcpServersRepo.create({ name: "Remote HTTP", transport: "http", url: "https://x/mcp", headers: { Authorization: "Bearer t" } });
+    const sse = mcpServersRepo.create({ name: "Remote SSE", transport: "sse", url: "https://x/sse" });
+
+    const result = toSdkMcpServers([stdio.id, http.id, sse.id, "missing-id"]);
+    expect(result).toEqual({
+      My_FS: { type: "stdio", command: "npx", args: ["-y", "server"], env: { K: "v" } },
+      Remote_HTTP: { type: "http", url: "https://x/mcp", headers: { Authorization: "Bearer t" } },
+      Remote_SSE: { type: "sse", url: "https://x/sse", headers: {} },
+    });
   });
 });
 

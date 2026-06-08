@@ -7,11 +7,13 @@ import { tasksRepo } from "../db/tasks";
 import { appendPosition } from "../../shared/board";
 import { broadcast } from "../realtime/hub";
 import { runsRepo } from "../db/runs";
+import { agentsRepo } from "../db/agents";
 import { registeredAgentsRepo } from "../db/registeredAgents";
 import { schedulesRepo } from "../db/schedules";
 import { readDef, MANGLER_SCOPE } from "../defs";
 import { commit, push } from "../git";
 import { startOrchestratedRun } from "./orchestrator";
+import { startAgentRun, agentWorkspaceDir } from "./agentRun";
 import { invokeRegisteredAgent } from "./invokeAgent";
 import { isValidCron, nextRun } from "../cron";
 import { Approver, UpdateNoteInput, UpdateTaskInput } from "../../shared/types";
@@ -202,6 +204,48 @@ const defs: ErasedTool[] = [
       void startOrchestratedRun(run, prompt);
       broadcast({ type: "run.updated", runId: run.id });
       return { runId: run.id, status: "started", approver: run.approver };
+    },
+  }),
+  tool({
+    name: "list_agents",
+    description:
+      "List the specialized agents the user has built in this app (id, name, type, description). 'task' agents are non-coding: they work through tools (e.g. ServiceNow, web) and cannot edit code; 'coding' agents edit files. Delegate matching work to the most appropriate one with delegate_to_agent; use delegate_ticket for general coding on a project ticket.",
+    schema: z.object({}),
+    handler: () => agentsRepo.list().map((a) => ({ id: a.id, name: a.name, type: a.type, description: a.description })),
+  }),
+  tool({
+    name: "delegate_to_agent",
+    description:
+      "Hand a task to one of the user's specialized agents (resolve its id with list_agents). The agent runs in the background and reports back in Active Agents. Pass projectId only if the work concerns a specific project's folder; most 'task' agents (e.g. a ServiceNow reviewer) need no project. The agent's own approval policy governs its tool use.",
+    schema: z.object({
+      agentId: z.string(),
+      task: z.string().min(1),
+      projectId: z.string().optional(),
+      approver: Approver.optional(),
+    }),
+    handler: ({ agentId, task, projectId, approver }) => {
+      const agent = agentsRepo.get(agentId);
+      if (!agent) return { error: "agent not found" };
+      let cwd = agentWorkspaceDir();
+      if (projectId) {
+        const project = projectsRepo.get(projectId);
+        if (!project) return { error: "project not found" };
+        cwd = project.path;
+      }
+      const run = runsRepo.create({
+        projectId: projectId ?? null,
+        kind: "agent",
+        title: agent.name,
+        status: "running",
+        approver: approver ?? (agent.approval === "human" ? "human" : "agent"),
+        permissionMode: "default",
+        model: agent.model,
+        cwd,
+        agentDef: agent.id,
+      });
+      void startAgentRun(run, task, agent);
+      broadcast({ type: "run.updated", runId: run.id });
+      return { runId: run.id, status: "started", agent: agent.name };
     },
   }),
   tool({

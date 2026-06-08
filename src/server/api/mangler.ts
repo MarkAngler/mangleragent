@@ -3,6 +3,7 @@ import { z } from "zod";
 import { conversationsRepo, messagesRepo } from "../db/chat";
 import { runMangler } from "../agents/mangler";
 import { runExternalAgentTurn } from "../agents/externalAgentChat";
+import { runLocalAgentTurn } from "../agents/agentRun";
 import { decideCommand } from "../agents/manglerCommands";
 
 export const manglerRouter = Router();
@@ -44,6 +45,7 @@ manglerRouter.post("/conversations/:id/messages", (req, res) => {
 
   messagesRepo.add(conversation.id, "user", parsed.data.text);
   if (conversation.agentId) void runExternalAgentTurn(conversation.id);
+  else if (conversation.localAgentId) void runLocalAgentTurn(conversation.id);
   else void runMangler(conversation.id);
   res.status(202).json({ ok: true });
 });

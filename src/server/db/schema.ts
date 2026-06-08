@@ -52,6 +52,21 @@ CREATE TABLE IF NOT EXISTS registered_agents (
   updated_at  INTEGER NOT NULL
 );
 
+-- Specialized agents built in-app and run locally on the Claude Agent SDK. No CHECK on
+-- type/approval: the AgentType/AgentApproval Zod enums gate these at the POST boundary.
+CREATE TABLE IF NOT EXISTS agents (
+  id                  TEXT PRIMARY KEY,
+  type                TEXT NOT NULL DEFAULT 'task',
+  name                TEXT NOT NULL,
+  description         TEXT NOT NULL DEFAULT '',
+  system_prompt       TEXT NOT NULL DEFAULT '',
+  model               TEXT,
+  mcp_server_ids_json TEXT NOT NULL DEFAULT '[]',
+  approval            TEXT NOT NULL DEFAULT 'none',
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mcp_servers (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
@@ -71,7 +86,10 @@ CREATE TABLE IF NOT EXISTS conversations (
   id                   TEXT PRIMARY KEY,
   title                TEXT NOT NULL DEFAULT 'New conversation',
   agent_id             TEXT REFERENCES registered_agents(id) ON DELETE CASCADE,
+  local_agent_id       TEXT REFERENCES agents(id) ON DELETE CASCADE,
   genie_conversation_id TEXT,
+  -- SDK session id for a local-agent chat, so follow-up turns resume the same session.
+  agent_sdk_session_id TEXT,
   created_at           INTEGER NOT NULL
 );
 
@@ -88,7 +106,8 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   id              TEXT PRIMARY KEY,
   project_id      TEXT REFERENCES projects(id) ON DELETE SET NULL,
   ticket_id       TEXT REFERENCES tickets(id) ON DELETE SET NULL,
-  kind            TEXT NOT NULL CHECK (kind IN ('pty','orchestrated')),
+  -- No CHECK: the AgentRunKind Zod enum ('pty' | 'orchestrated' | 'agent') gates this at the boundary.
+  kind            TEXT NOT NULL,
   title           TEXT NOT NULL DEFAULT '',
   status          TEXT NOT NULL CHECK (status IN ('planning','awaiting_approval','running','done','failed','stopped')),
   approver        TEXT NOT NULL DEFAULT 'human' CHECK (approver IN ('human','agent')),
@@ -142,6 +161,8 @@ CREATE TABLE IF NOT EXISTS schedules (
   prompt          TEXT NOT NULL,
   cron            TEXT NOT NULL,
   conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+  -- When set, the occurrence runs this agent directly instead of Mangler.
+  agent_id        TEXT REFERENCES agents(id) ON DELETE SET NULL,
   enabled         INTEGER NOT NULL DEFAULT 1,
   last_run_at     INTEGER,
   next_run_at     INTEGER,

@@ -15,6 +15,7 @@ import { notesRouter } from "./api/notes";
 import { tasksRouter } from "./api/tasks";
 import { manglerRouter } from "./api/mangler";
 import { runsRouter } from "./api/runs";
+import { agentsRouter } from "./api/agents";
 import { externalAgentsRouter } from "./api/externalAgents";
 import { mcpServersRouter } from "./api/mcpServers";
 import { defsRouter } from "./api/defs";
@@ -41,6 +42,7 @@ function main(): void {
   app.use("/api", tasksRouter);
   app.use("/api", manglerRouter);
   app.use("/api", runsRouter);
+  app.use("/api", agentsRouter);
   app.use("/api", externalAgentsRouter);
   app.use("/api", mcpServersRouter);
   app.use("/api", defsRouter);

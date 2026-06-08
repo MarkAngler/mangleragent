@@ -2,15 +2,34 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
-import type { Schedule } from "../../shared/types";
+import type { Agent, Schedule } from "../../shared/types";
 import { Button, Card, Drawer, EmptyState, Input, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { usePageTitle } from "../components/PageTitleProvider";
 
 const CRON_HINT = "5-field cron · e.g. 0 9 * * 1-5 (9am weekdays), */30 * * * * (every 30 min)";
 
+const SELECT_CLASS = "mt-1.5 w-full rounded-md border border-hairline-strong bg-surface px-3 py-2 text-sm outline-none focus:border-accent";
+
 function nextRunLabel(s: Schedule): string {
   if (!s.enabled) return "paused";
   return s.nextRunAt ? new Date(s.nextRunAt).toLocaleString() : "—";
+}
+
+// A schedule either runs a specific agent (agentId set) or runs its prompt through Mangler.
+function TargetSelect({ agents, value, onChange }: { agents: Agent[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <Mono>target</Mono>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={SELECT_CLASS}>
+        <option value="">Mangler (full toolset)</option>
+        {agents.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 export function SchedulesPage() {
@@ -20,21 +39,23 @@ export function SchedulesPage() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: schedules = [] } = useQuery({ queryKey: ["schedules"], queryFn: () => get<Schedule[]>("/schedules") });
+  const { data: agents = [] } = useQuery({ queryKey: ["agents"], queryFn: () => get<Agent[]>("/agents") });
   useWsMessage((msg) => {
     if (msg.type === "schedule.updated") void qc.invalidateQueries({ queryKey: ["schedules"] });
   });
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["schedules"] });
+  const agentName = (id: string | null) => agents.find((a) => a.id === id)?.name;
 
   const createSchedule = useMutation({
-    mutationFn: (input: { title: string; prompt: string; cron: string }) => post<Schedule>("/schedules", input),
+    mutationFn: (input: { title: string; prompt: string; cron: string; agentId: string | null }) => post<Schedule>("/schedules", input),
     onSuccess: () => {
       invalidate();
       setAddOpen(false);
     },
   });
   const updateSchedule = useMutation({
-    mutationFn: (vars: { id: string; patch: Partial<Pick<Schedule, "title" | "prompt" | "cron" | "enabled">> }) =>
+    mutationFn: (vars: { id: string; patch: Partial<Pick<Schedule, "title" | "prompt" | "cron" | "enabled" | "agentId">> }) =>
       patch<Schedule>(`/schedules/${vars.id}`, vars.patch),
     onSuccess: invalidate,
   });
@@ -70,6 +91,7 @@ export function SchedulesPage() {
                   </div>
                   <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-muted">{s.prompt}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <Mono>→ {s.agentId ? (agentName(s.agentId) ?? "deleted agent") : "Mangler"}</Mono>
                     <Mono>cron {s.cron}</Mono>
                     <Mono>next {nextRunLabel(s)}</Mono>
                     {s.lastRunAt && <Mono>last {new Date(s.lastRunAt).toLocaleString()}</Mono>}
@@ -89,6 +111,7 @@ export function SchedulesPage() {
 
       <AddScheduleModal
         open={addOpen}
+        agents={agents}
         onClose={() => setAddOpen(false)}
         onCreate={(input) => createSchedule.mutate(input)}
         error={createSchedule.isError ? (createSchedule.error as Error).message : null}
@@ -100,6 +123,7 @@ export function SchedulesPage() {
           <ScheduleEditor
             key={openSchedule.id}
             schedule={openSchedule}
+            agents={agents}
             onSave={(p) => updateSchedule.mutate({ id: openSchedule.id, patch: p })}
             onDelete={() => {
               deleteSchedule.mutate(openSchedule.id);
@@ -114,20 +138,23 @@ export function SchedulesPage() {
 
 function AddScheduleModal({
   open,
+  agents,
   onClose,
   onCreate,
   error,
   pending,
 }: {
   open: boolean;
+  agents: Agent[];
   onClose: () => void;
-  onCreate: (input: { title: string; prompt: string; cron: string }) => void;
+  onCreate: (input: { title: string; prompt: string; cron: string; agentId: string | null }) => void;
   error: string | null;
   pending: boolean;
 }) {
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [cron, setCron] = useState("0 9 * * 1-5");
+  const [agentId, setAgentId] = useState("");
   const valid = title.trim() && prompt.trim() && cron.trim();
 
   return (
@@ -138,7 +165,11 @@ function AddScheduleModal({
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="solid" disabled={!valid || pending} onClick={() => onCreate({ title: title.trim(), prompt: prompt.trim(), cron: cron.trim() })}>
+          <Button
+            variant="solid"
+            disabled={!valid || pending}
+            onClick={() => onCreate({ title: title.trim(), prompt: prompt.trim(), cron: cron.trim(), agentId: agentId || null })}
+          >
             Create
           </Button>
         </>
@@ -149,9 +180,16 @@ function AddScheduleModal({
           <Mono>title</Mono>
           <Input className="mt-1.5" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekday triage" />
         </div>
+        <TargetSelect agents={agents} value={agentId} onChange={setAgentId} />
         <div>
-          <Mono>prompt</Mono>
-          <Textarea className="mt-1.5" rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Review the board and delegate any ready tickets…" />
+          <Mono>{agentId ? "task" : "prompt"}</Mono>
+          <Textarea
+            className="mt-1.5"
+            rows={5}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={agentId ? "What should the agent do each run?" : "Review the board and delegate any ready tickets…"}
+          />
         </div>
         <div>
           <Mono>cron</Mono>
@@ -166,17 +204,26 @@ function AddScheduleModal({
 
 function ScheduleEditor({
   schedule,
+  agents,
   onSave,
   onDelete,
 }: {
   schedule: Schedule;
-  onSave: (patch: { title?: string; prompt?: string; cron?: string }) => void;
+  agents: Agent[];
+  onSave: (patch: { title?: string; prompt?: string; cron?: string; agentId?: string | null }) => void;
   onDelete: () => void;
 }) {
   const [title, setTitle] = useState(schedule.title);
   const [prompt, setPrompt] = useState(schedule.prompt);
   const [cron, setCron] = useState(schedule.cron);
-  const commit = () => onSave({ title: title.trim() || schedule.title, prompt: prompt.trim() || schedule.prompt, cron: cron.trim() || schedule.cron });
+  const [agentId, setAgentId] = useState(schedule.agentId ?? "");
+  const commit = () =>
+    onSave({
+      title: title.trim() || schedule.title,
+      prompt: prompt.trim() || schedule.prompt,
+      cron: cron.trim() || schedule.cron,
+      agentId: agentId || null,
+    });
 
   return (
     <div className="flex flex-col gap-5">
@@ -184,8 +231,16 @@ function ScheduleEditor({
         <Mono>title</Mono>
         <Input className="mt-1.5 text-base font-medium" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={commit} />
       </div>
+      <TargetSelect
+        agents={agents}
+        value={agentId}
+        onChange={(v) => {
+          setAgentId(v);
+          onSave({ agentId: v || null });
+        }}
+      />
       <div>
-        <Mono>prompt</Mono>
+        <Mono>{agentId ? "task" : "prompt"}</Mono>
         <Textarea className="mt-1.5" rows={10} value={prompt} onChange={(e) => setPrompt(e.target.value)} onBlur={commit} />
       </div>
       <div>
