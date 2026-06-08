@@ -11,6 +11,7 @@
 | Run | Date | Ideas Added | Idea Selected |
 |-----|------|-------------|---------------|
 | 1 | 2026-06-07 | MA-001, MA-002, MA-003, OR-001, OR-002, OR-003, RT-001, SC-001, SC-002, SC-003, ME-001, ME-002, DF-001 | MA-002 |
+| 2 | 2026-06-08 | KB-001, ME-003, OR-004, OR-005, OR-006 | KB-001 |
 
 ---
 
@@ -421,3 +422,335 @@ Pass `system` to `messages.create()`. The Anthropic SDK accepts `TextBlockParam[
 ---
 
 *End of Run 1 — 2026-06-07*
+
+---
+
+## Run 2 — 2026-06-08
+
+---
+
+### Frontier Research: New Sections (Run 2)
+
+#### 2.7 Agent-Driven Project Management (Kanban + AI Agents)
+
+**Key advances (2025–2026):**
+
+- **Convergent industry pattern:** Multiple independent projects (agent-kanban, Vibe Kanban, ai-agent-board, KittyClaw) have all arrived at the same architecture: ticket/card state change → agent spawn with card text as context → agent updates card state on completion. This is now considered table-stakes behavior for agent-native project management tools.
+  - Sources: [agent-kanban — saltbo/agent-kanban](https://github.com/saltbo/agent-kanban); [Vibe Kanban — BloopAI](https://github.com/BloopAI/vibe-kanban); [ai-agent-board — DanWahlin](https://github.com/DanWahlin/ai-agent-board); [KittyClaw — DEV Community](https://dev.to/lainagent_ai/i-built-a-kanban-board-where-ai-agents-are-actual-team-members-l1c)
+
+- **agent-kanban** (TypeScript + Hono + D1/SQLite + SSE) defines a task lifecycle: **Todo → In Progress → In Review → Done**. Atomic batch operations prevent race conditions when multiple agents attempt to claim the same card simultaneously. Agents have Ed25519 keypair identities, CLI verbs (`ak task claim`, `ak task complete`, `ak task reject`), and stale detection (Offline after 2 hours of inactivity).
+  - Source: [github.com/saltbo/agent-kanban](https://github.com/saltbo/agent-kanban)
+
+- **ai-agent-board** normalizes events from Claude Code, Codex, Gemini CLI, and others into a common `AgentEvent` format; WebSocket broadcast drives the live board; optional per-task git worktree isolation auto-creates and auto-cleans branches. The `AgentProvider` abstraction pattern (description, systemPrompt, toolset per agent type) is used to parameterize delegation.
+  - Source: [github.com/DanWahlin/ai-agent-board](https://github.com/DanWahlin/ai-agent-board)
+
+- **KittyClaw:** Declarative automations fire when a card enters specific columns. When a ticket moves to "Done," a `committer-on-done` automation commits the changes. When it moves to "Review," `qa-on-review` spawns a QA agent. Automations are the primary integration point, not direct agent-to-board API calls.
+  - Source: [DEV Community — KittyClaw](https://dev.to/lainagent_ai/i-built-a-kanban-board-where-ai-agents-are-actual-team-members-l1c)
+
+**Conflicts / caveats:** Both column-transition and label-based approaches are used in the wild. Column transitions are more visually prominent but presume fixed column semantics ("In Progress," "Done"). Label badges are more conservative and composable — they add status without overriding user-managed column placement.
+
+---
+
+#### 2.8 SQLite-vec for Embedded Vector Search in Node.js
+
+**Key advances (2025–2026):**
+
+- **sqlite-vec** (`npm install sqlite-vec`) by Alex Garcia is now the canonical SQLite vector extension. Its predecessor `sqlite-vss` (Faiss-based) is deprecated. The `sqliteVec.load(db)` call is explicitly documented as compatible with `better-sqlite3`, which this project already uses.
+  - Sources: [github.com/asg017/sqlite-vec](https://github.com/asg017/sqlite-vec); [Official Node.js guide — Alex Garcia](https://alexgarcia.xyz/sqlite-vec/js.html)
+
+- **Recent releases:** v0.1.7 (March 17, 2026) — proper DELETE support, Mozilla-backed revival; v0.1.9 (March 31, 2026) — bug fixes for vec0 tables with long metadata; v0.1.10-alpha.4 (May 18, 2026) — experimental DiskANN and IVF approximate-nearest-neighbor indexes. **7,700 GitHub stars, 322 forks** as of June 2026.
+  - Source: [sqlite-vec GitHub releases](https://github.com/asg017/sqlite-vec/releases)
+
+- **KNN query pattern:** Vectors are stored as `Float32Array.buffer`. The canonical query is `WHERE embedding MATCH ? ORDER BY distance LIMIT K`, which is O(K·n) brute-force in v0.1.x but will improve with DiskANN in v1.0+.
+  - Source: [DEV Community — How sqlite-vec Works](https://dev.to/stephenc222/how-to-use-sqlite-vec-to-store-and-query-vector-embeddings-58mf)
+
+- **Local embedding generation:** The `@xenova/transformers` package (now `@huggingface/transformers`) runs ONNX embedding models in Node.js without any API call; the `Xenova/gte-base` model (768-dim) performs well for semantic retrieval with negligible latency on CPU.
+  - Source: [github.com/asg017/sqlite-vec — js example](https://alexgarcia.xyz/sqlite-vec/js.html)
+
+- **Alternative packages:** `@dao-xyz/sqlite3-vec` (browser WASM + Node.js); `@photostructure/sqlite-vec`; `@sqliteai/sqlite-vector` (cross-platform, 30 MB memory cap). These are wrappers or alternatives rather than replacements for the core sqlite-vec extension.
+  - Source: [npmjs.com/@photostructure/sqlite-vec](https://www.npmjs.com/package/@photostructure/sqlite-vec)
+
+**Conflicts / caveats:** sqlite-vec is explicitly pre-v1.0. The ANN indexes (DiskANN, IVF) are experimental as of v0.1.10-alpha. For small memory sets (<5,000 entries) the brute-force KNN is fast enough. **Pin to a specific patch version** (`sqlite-vec@0.1.9`) in `package.json` until v1.0 is released.
+
+---
+
+#### 2.9 Structured LLM Plan Critique and Agent Self-Reflection
+
+**Key advances (2025–2026):**
+
+- **AFLOW** (arXiv:2410.10762, ICLR 2025 **oral** presentation): Treats `Review` and `Revise` as first-class MCTS primitive operators over a workflow space. Discovered that inserting reflection steps allows weaker models to outperform stronger ones on the cost-efficiency Pareto front. Outperforms manual workflows by 5.7%, prior automated methods by 19.5% across six benchmarks.
+  - Source: [arXiv:2410.10762](https://arxiv.org/abs/2410.10762); [ICLR 2025](https://iclr.cc/virtual/2025/oral/31731)
+
+- **LangGraph self-correction pattern** (production standard as of 2025): `generate_node → critique_node → router_node → (accept | retry)` using a conditional edge. The router reads a boolean from the critic's **structured JSON output**. A `max_retries` guard is essential to prevent infinite loops. Using a smaller/cheaper model for the `critique_node` is the standard cost tradeoff.
+  - Source: [Zylos Research — Agent Self-Correction](https://zylos.ai/research/2026-03-06-ai-agent-reflection-self-evaluation-patterns); [ActiveWizards — LangGraph Self-Correcting Agents](https://activewizards.com/blog/a-deep-dive-into-langgraph-for-self-correcting-ai-agents/)
+
+- **Structured critique output schema** (emerging practice, 2025–2026): Rather than free-text "REVISE: ..." feedback, critics return a typed structure: `{ decision: "approve" | "reject", confidence: 0–1, issues: Array<{ excerpt: string, problem: string, suggestion: string }> }`. This is actionable by both the agent (for targeted revision) and the UI (for rendering specific feedback).
+  - Source: [SitePoint — Agentic Design Patterns 2026](https://www.sitepoint.com/the-definitive-guide-to-agentic-design-patterns-in-2026/)
+
+- **Benchmark:** Agents with critique-and-revise loops reached 91% accuracy on coding benchmarks vs. 80% without reflection. Self-refinement improved performance by ~20% across diverse tasks (dialogue, math).
+  - Source: [Zylos Research](https://zylos.ai/research/2026-03-06-ai-agent-reflection-self-evaluation-patterns)
+
+**Conflicts / caveats:** Pre-execution plan critique (deliberative planning) adds latency before every run. For short runs (<5 turns), the critique overhead may exceed the benefit. Gating deliberative critique on `approver === "agent"` or on run complexity is the correct tradeoff.
+
+---
+
+#### 2.10 Claude Agent SDK Subagent API and Streaming Events
+
+**Key advances (2025–2026):**
+
+- **Programmatic subagent definition** via the `agents` parameter in `query()` options (TypeScript SDK, 2025–2026). Each entry is an `AgentDefinition` with: `description` (auto-dispatch signal), `prompt` (system prompt), `tools` (allowlist), `model`, `background` (boolean — non-blocking), `maxTurns`, `permissionMode`. The `Agent` tool was renamed from `Task` in Claude Code v2.1.63; both names should be checked for compatibility.
+  - Source: [code.claude.com/docs/en/agent-sdk/subagents](https://code.claude.com/docs/en/agent-sdk/subagents)
+
+- **Subagent constraints:** Subagents cannot spawn their own subagents — `Agent` must not appear in a subagent's `tools` array. Context from parent to subagent is passed **only** via the Agent tool's prompt string (no shared conversation history). Only the subagent's final message returns to the parent. Parallelism: up to 10 concurrent sub-agents; wall time equals the slowest, not the sum.
+  - Source: [code.claude.com/docs/en/agent-sdk/subagents](https://code.claude.com/docs/en/agent-sdk/subagents)
+
+- **Streaming via `includePartialMessages: true`:** The async generator yields typed streaming events: `content_block_start` (tool name known immediately), `content_block_delta` with `delta.type === "input_json_delta"` (partial JSON input chunks), `content_block_stop` (tool input complete). This enables displaying tool names to the user before tool execution begins — a significant UX improvement for long-running orchestrated runs.
+  - Source: [code.claude.com/docs/en/agent-sdk/streaming-output](https://code.claude.com/docs/en/agent-sdk/streaming-output)
+
+- **Background subagents:** `background: true` in an `AgentDefinition` allows the parent agent to dispatch and continue without blocking on the subagent's result. The result is collected asynchronously when the subagent's `Agent` tool call resolves.
+  - Source: [Claude Agent SDK subagents docs](https://code.claude.com/docs/en/agent-sdk/subagents)
+
+**Conflicts / caveats:** Parallel fan-out via the SDK is currently limited to 10 concurrent subagents. The `cwd` option behavior in subagent definitions vs. the root `query()` `cwd` option requires verification against the current SDK version (`@anthropic-ai/claude-agent-sdk@0.3.158`).
+
+---
+
+### Idea Log Additions (Run 2)
+
+---
+
+### Component: Kanban Board
+
+---
+
+#### [KB-001] Ticket Agent-Status Labels on Run Lifecycle
+- **Date:** 2026-06-08
+- **Status:** Planned
+- **Enabling advancement:** Industry-standard pattern converged across agent-kanban, Vibe Kanban, ai-agent-board, and KittyClaw: ticket state is automatically updated to reflect agent lifecycle. Label-based approach chosen over column transitions to avoid hardcoding column-name semantics.
+- **Gap addressed:** When `delegate_ticket` creates a run, the ticket's labels remain unchanged. The kanban board provides no visual indication that an agent is working on the ticket. Users must navigate to the Runs page to discover run state. This severs the conceptual link between the project management view and the agent execution view — exactly the link that makes agent-native boards valuable.
+- **User benefit:** The kanban board becomes a live status board. An `agent:running` badge appears on the ticket card the moment delegation fires. On run completion it is replaced by `agent:done`, `agent:failed`, or `agent:stopped`. No page navigation required; the board view is the source of truth.
+- **Research support:** Every surveyed agent-kanban project (agent-kanban, Vibe Kanban, ai-agent-board, KittyClaw) implements automatic ticket/card state updates driven by agent run lifecycle events as a core feature. The label approach is used in agent-kanban's status column; the lifecycle events (claim → working → done/failed) are universal.
+- **Affected files:** `src/server/agents/manglerTools.ts`, `src/server/agents/orchestrator.ts`
+- **Complexity:** Low — both files already import `ticketsRepo` and `broadcast`; no schema changes; no new dependencies; no client changes (labels render as visible badges on ticket cards already)
+- **Risk:** Minimal. Label updates are idempotent: existing `agent:*` labels are filtered before each write, preventing accumulation across re-delegations. The `finally`-block update skips tickets whose runs were already handled by `stopOrchestratedRun` (status check guards against double-write).
+
+---
+
+### Component: Memory (additions)
+
+---
+
+#### [ME-003] sqlite-vec Integration for Scalable Local Vector Memory
+- **Date:** 2026-06-08
+- **Status:** Proposed
+- **Enabling advancement:** sqlite-vec v0.1.9 (March 31, 2026); `sqliteVec.load(db)` explicitly compatible with `better-sqlite3`; KNN query via `WHERE embedding MATCH ? ORDER BY distance LIMIT K` replaces O(n) JS cosine loop
+- **Gap addressed:** ME-001 proposes O(n) cosine similarity computed in JavaScript, which degrades as the memory store grows. sqlite-vec provides a proper indexed KNN query within SQLite using the same `better-sqlite3` connection the project already holds. No external vector database needed.
+- **User benefit:** ME-001's local memory remains fast at thousands of entries; no API latency for embedding retrieval. Entirely local — works offline. Pins at 7.7k-star, actively-maintained package.
+- **Approach:** `npm install sqlite-vec@0.1.9`; in `src/server/db/index.ts`, call `sqliteVec.load(db)` after opening the database; create a `vec_memory_entries` virtual table (`vec0`) alongside the regular `memory_entries` metadata table; replace the planned JS cosine loop in ME-001 with `WHERE embedding MATCH ? ORDER BY distance LIMIT 5`.
+- **Affected files:** `src/server/db/index.ts`, new `src/server/db/memory.ts` (shared with ME-001)
+- **Complexity:** Low — 2-line change to DB initialization + schema addition; main complexity is in ME-001 itself
+- **Risk:** sqlite-vec is pre-v1.0; pin to exact patch version. DiskANN / ANN indexes (experimental in v0.1.10-alpha) are not required — brute-force KNN is sufficient for <5,000 memory entries. Must be gated: if `sqliteVec.load` throws (missing native module), fall back to JS cosine loop with a warning.
+
+---
+
+### Component: Orchestrated Agent Runs (additions)
+
+---
+
+#### [OR-004] Per-Run Wall-Clock Timeout
+- **Date:** 2026-06-08
+- **Status:** Proposed
+- **Enabling advancement:** Standard JS `setTimeout` + existing `stopOrchestratedRun`; consistent with Inngest/Temporal step-timeout patterns for LLM pipelines
+- **Gap addressed:** The orchestrator has `MAX_TURNS = 60` but no wall-clock timeout. A run blocked by a hanging Bash command, model API timeout, or network partition holds an `activeQueries` slot indefinitely with no recovery path short of server restart. This is an unhandled production failure mode.
+- **User benefit:** Runs that exceed a configurable wall-clock limit (default: 30 min) are cleanly stopped with status "failed" and a descriptive event logged. Users see "Run timed out after 30 minutes" in the event log rather than a perpetually-spinning progress indicator.
+- **Approach:** In `startOrchestratedRun`, start a `setTimeout` immediately after `activeQueries.set(run.id, q)`. On expiry, emit an `error` event and call `stopOrchestratedRun(run.id)`. Clear the timeout in the `finally` block unconditionally. Initial implementation uses a module-level `DEFAULT_RUN_TIMEOUT_MS = 30 * 60 * 1000` constant; a future iteration can read it from a `timeout_ms` column on `agent_runs`.
+- **Affected files:** `src/server/agents/orchestrator.ts`
+- **Complexity:** Low — ~10 lines; no schema changes in initial version
+- **Risk:** If the model API is slow-but-valid (large output generation), a short timeout causes false positives. 30 min default is conservative. The risk of missing this timeout (zombie runs) outweighs the risk of false positives.
+
+---
+
+#### [OR-005] Structured JSON Plan Critique
+- **Date:** 2026-06-08
+- **Status:** Proposed
+- **Enabling advancement:** LangGraph generate→critique→route production pattern (2025); AFLOW Review+Revise MCTS operators (ICLR 2025 oral); Anthropic structured output (JSON schema mode) in `@anthropic-ai/sdk`
+- **Gap addressed:** `reviewPlan` uses a regex on free-text output (`/^approve/i`). The critic cannot report which parts of the plan fail, cannot assign confidence, and cannot distinguish "wrong approach" from "minor detail." On any API failure, it silently auto-approves. The approval UI receives only a raw string reason.
+- **User benefit:** Plan rejections include structured feedback: which excerpt in the plan is problematic, what the problem is, and a concrete suggestion. The approval UI renders this as actionable line-level guidance. Revision history (how many iterations were needed) becomes trackable via the `reason` field.
+- **Approach:** Change `reviewPlan` to use `response_format` / JSON schema forcing in `messages.create`. Target schema: `{ decision: "approve"|"reject", confidence: number, issues: Array<{ excerpt: string, problem: string, suggestion: string }> }`. Parse JSON; derive `approved` from `decision`. On parse failure, fall back to the current APPROVE/REVISE text heuristic rather than auto-approving. Store the full critique JSON in `permission_requests.reason`. Render structured issues in `OrchestratedRunView.tsx` when `kind === "plan"` and `reason` is valid JSON.
+- **Affected files:** `src/server/agents/orchestrator.ts`, `src/client/components/OrchestratedRunView.tsx`
+- **Complexity:** Medium — structured output support must be verified against `@anthropic-ai/sdk@0.100.1`; UI changes required for the new critique format
+- **Risk:** Anthropic JSON schema mode may add latency vs. the current text-parsing approach. Parsing failures must gracefully degrade to the existing behavior. The client must handle both the old string format and the new JSON format in `reason` (transition period).
+
+---
+
+#### [OR-006] Claude Agent SDK Subagent Fan-Out for Parallel Ticket Delegation
+- **Date:** 2026-06-08
+- **Status:** Proposed
+- **Enabling advancement:** Claude Agent SDK `agents` parameter in `query()` options (2025); parallel subagent execution up to 10 concurrent; `background: true` for non-blocking dispatch; subagent SDK docs confirmed via code.claude.com
+- **Gap addressed:** Delegating multiple tickets is sequential — Mangler calls `delegate_ticket` once per ticket, each creating an independent `query()` call. The Agent SDK's `agents` + `background: true` pattern enables true concurrent execution within a single `query()` session. Wall time becomes max(tickets) rather than sum(tickets).
+- **User benefit:** "Delegate all open bugs to agents" runs all agents concurrently. A 4-ticket parallel delegation that each takes 5 min completes in 5 min instead of 20.
+- **Approach:** New `startParallelOrchestratedRun` function accepting `Array<{ run: AgentRun; prompt: string }>`. Constructs a parent `query()` with `agents` entries for each run (description from ticket title, prompt = delegated prompt, tools restricted, `background: true`). Dispatches the parent query and maps streaming results back to the correct `runId` via the Agent tool's `tool_use_id`. Each sub-agent's events flow through the existing `eventsRepo.add` path.
+- **Affected files:** `src/server/agents/orchestrator.ts`, `src/server/agents/manglerTools.ts`
+- **Complexity:** High — SDK subagent API constraints (no sub-subagents; context only via prompt string; `cwd` handling per subagent requires verification); event demultiplexing from parent to child runs; significant testing surface
+- **Risk:** High. The `cwd` option behavior per subagent definition vs. root `query()` `cwd` is undocumented and requires empirical testing. If subagents inherit the parent's CWD rather than accepting per-agent CWD, multi-project fan-out breaks. Defer to a later run after OR-002 (session resume) is validated.
+
+---
+
+## 4. Improvement Selection — Run 2
+
+### Selected: [KB-001] — Ticket Agent-Status Labels on Run Lifecycle
+
+**Justification against product objective:**
+
+Mangled Agents' core promise is that Mangler helps the user "stay organized and move work forward." The kanban board is the primary organizational artifact — it is the user's real-time view of what is happening. Yet today, delegating a ticket to an agent produces zero change on the board. The ticket sits in its original column with its original labels while an agent is actively transforming the project. Users must open a separate Runs page to observe progress.
+
+Every surveyed agent-kanban product (agent-kanban, Vibe Kanban, ai-agent-board, KittyClaw) treats automatic ticket state updates as a first-class feature, not an enhancement. It is the behavioral definition of an "agent-native" board. Implementing KB-001 closes this gap with the minimum possible implementation surface — **two files, no new dependencies, no schema changes** — and the effect is immediately visible to any user who delegates a ticket.
+
+The label approach (rather than automatic column transitions) is the correct conservative choice: it does not presume any fixed column names or ordering, it composes with user-managed column placement, and it is trivially reversible (the `agent:*` prefix is a clear namespace, easy to filter).
+
+**Ideas excluded:**
+- ME-003 (sqlite-vec): High value but depends on ME-001 being implemented first; ME-001 is not yet Planned. Correct sequencing: ME-001 → ME-003.
+- OR-004 (Wall-Clock Timeout): Also low complexity and high safety value, but ranks below KB-001 on user-facing impact. Good candidate for Run 3.
+- OR-005 (Structured Critique): Medium complexity; blocks on verifying structured output support in the current Anthropic SDK version. Best as a follow-on after OR-001 (token tracking) validates the observability layer.
+- OR-006 (Parallel Fan-Out): High complexity, high risk, unverified SDK behavior. Defer until OR-002 (session resume) is validated.
+
+---
+
+## 5. Implementation Plan: [KB-001] Ticket Agent-Status Labels
+
+**Objective:** Automatically label tickets with `agent:running`, `agent:done`, `agent:failed`, or `agent:stopped` at the corresponding orchestrated run lifecycle event, broadcasting a `board.updated` event so the kanban board reflects agent state in real time.
+
+### 5.1 How Labels Work in This Codebase
+
+Tickets have a `labels_json TEXT NOT NULL DEFAULT '[]'` column in SQLite, surfaced as `string[]` on the `Ticket` type. `ticketsRepo.update(ticketId, { labels: string[] })` does a full array replacement. The `board.updated` WebSocket message triggers a client refetch of the board for the given `projectId`, causing the ticket card to re-render with the new labels.
+
+All `agent:*` labels share a namespaced prefix, making them easy to filter: `ticket.labels.filter(l => !l.startsWith("agent:"))` strips all agent-managed labels before appending the new status label. This ensures a ticket never accumulates stale `agent:running` labels from prior runs.
+
+### 5.2 Affected Files
+
+| File | Change |
+|------|--------|
+| `src/server/agents/manglerTools.ts` | `delegate_ticket` handler: add `agent:running` label + `board.updated` broadcast after run creation |
+| `src/server/agents/orchestrator.ts` | `stopOrchestratedRun`: add `agent:stopped` label + `board.updated` broadcast before returning; `startOrchestratedRun` `finally` block: add `agent:done` / `agent:failed` label if run was not stopped |
+
+No client changes, no schema changes, no new npm packages.
+
+### 5.3 Implementation Approach
+
+**`src/server/agents/manglerTools.ts` — `delegate_ticket` handler**
+
+Insert after `runsRepo.create(...)` and before `void startOrchestratedRun(...)`:
+
+```typescript
+// Reflect delegation immediately on the board.
+const runningLabels = [...ticket.labels.filter(l => !l.startsWith("agent:")), "agent:running"];
+ticketsRepo.update(ticket.id, { labels: runningLabels });
+broadcast({ type: "board.updated", projectId: ticket.projectId });
+```
+
+The `ticket` variable is already in scope (loaded at line 188 of the current file). `ticketsRepo` and `broadcast` are both already imported.
+
+**`src/server/agents/orchestrator.ts` — `stopOrchestratedRun`**
+
+Insert after `runsRepo.setStatus(runId, "stopped")` and before the final `broadcast({ type: "run.updated", runId })`:
+
+```typescript
+const stoppedRun = runsRepo.get(runId);
+if (stoppedRun?.ticketId) {
+  const ticket = ticketsRepo.get(stoppedRun.ticketId);
+  if (ticket) {
+    const labels = [...ticket.labels.filter(l => !l.startsWith("agent:")), "agent:stopped"];
+    ticketsRepo.update(ticket.id, { labels });
+    broadcast({ type: "board.updated", projectId: ticket.projectId });
+  }
+}
+```
+
+`ticketsRepo` is already imported (line 3 of the current file).
+
+**`src/server/agents/orchestrator.ts` — `startOrchestratedRun` `finally` block**
+
+Insert after `activeQueries.delete(run.id)`:
+
+```typescript
+if (run.ticketId) {
+  const finalRun = runsRepo.get(run.id);
+  if (finalRun && finalRun.status !== "stopped") {
+    const ticket = ticketsRepo.get(run.ticketId);
+    if (ticket) {
+      const label = finalRun.status === "done" ? "agent:done" : "agent:failed";
+      const labels = [...ticket.labels.filter(l => !l.startsWith("agent:")), label];
+      ticketsRepo.update(ticket.id, { labels });
+      broadcast({ type: "board.updated", projectId: ticket.projectId });
+    }
+  }
+}
+```
+
+The `status !== "stopped"` guard prevents a double-write when `stopOrchestratedRun` has already fired and set `agent:stopped`. The `run.ticketId` is available from the `startOrchestratedRun` parameter — no additional DB read needed for the ticket ID itself (only for the current labels, which requires `ticketsRepo.get`).
+
+### 5.4 Event Flow
+
+```
+delegate_ticket called
+  → runsRepo.create (ticketId stored)
+  → ticketsRepo.update({ labels: ["agent:running"] })
+  → broadcast board.updated                     ← board shows "agent:running" badge immediately
+  → void startOrchestratedRun(run, prompt)
+
+[run executes...]
+
+Case A: success/failure (terminal result message)
+  → finally block fires
+  → runsRepo.get(runId).status === "done" | "failed"
+  → ticketsRepo.update({ labels: ["agent:done"] | ["agent:failed"] })
+  → broadcast board.updated                     ← board shows terminal badge
+
+Case B: manual stop via stopOrchestratedRun
+  → runsRepo.setStatus(runId, "stopped")
+  → ticketsRepo.update({ labels: ["agent:stopped"] })
+  → broadcast board.updated                     ← board shows "agent:stopped" badge
+  → finally block fires, sees status === "stopped", skips   ← no double-write
+```
+
+### 5.5 Dependencies
+
+- No new npm packages
+- No DB schema changes
+- No `src/shared/types.ts` or `src/shared/ws.ts` changes
+- No client-side changes (labels are already rendered on ticket cards; `board.updated` already triggers a refetch)
+
+### 5.6 Risks and Mitigations
+
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| Labels not rendered as visible badges on ticket cards | Low | Validation step 2 will confirm; if not rendered, add a single-line label display to the ticket card component |
+| `ticketsRepo.get` returns null for recently-deleted ticket | Very low | Both `stopOrchestratedRun` and the `finally` block guard with `if (ticket)` before writing |
+| `finally` block double-write race with `stopOrchestratedRun` | Very low | Status check (`!== "stopped"`) is a synchronous SQLite read; SQLite's serialized write queue ensures consistency |
+| Re-delegating a ticket that already has `agent:done` | Not a risk | The label filter (`!l.startsWith("agent:")`) strips the prior label before writing `agent:running` |
+
+### 5.7 Validation Strategy
+
+1. **Unit test:** In `src/server/agents/manglerTools.test.ts`, mock `ticketsRepo` and assert that after `delegate_ticket`, the ticket's labels include `"agent:running"` and `board.updated` was broadcast. Existing `manglerTools.test.ts` already mocks `broadcast`.
+2. **Integration test (manual):**
+   - Start `npm run dev`; create a project with tickets
+   - Open the kanban board in a browser tab
+   - Ask Mangler to delegate a ticket
+   - Verify `agent:running` label appears on the ticket card without a page refresh
+   - Let the run complete (or use the Stop button)
+   - Verify `agent:done` or `agent:stopped` label replaces `agent:running`
+3. **Edge case:** Manually stop a run mid-execution; verify the board shows `agent:stopped`, not `agent:running`
+4. **Re-delegation:** Delegate the same ticket a second time; verify the board shows `agent:running` (not two agent labels)
+5. **Regression:** Run `npm test` to confirm all existing tests pass
+
+### 5.8 Success Criteria
+
+- `agent:running` label appears on ticket card within one WebSocket round-trip of delegation
+- Terminal labels (`agent:done`, `agent:failed`, `agent:stopped`) replace `agent:running` after run ends
+- No `agent:*` label accumulation on repeated delegations
+- All existing tests pass (`npm test`)
+- Typecheck passes (`npm run typecheck`)
+- Lint passes (`npm run lint`)
+
+---
+
+*End of Run 2 — 2026-06-08*
