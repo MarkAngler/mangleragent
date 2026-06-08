@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
@@ -350,6 +350,27 @@ function CommitPanel({ projectId }: { projectId: string }) {
     onError: (err) => toast({ tone: "bad", title: "Push failed", body: (err as Error).message }),
   });
 
+  const generate = useMutation({ mutationFn: () => post<{ message: string }>(`/projects/${projectId}/commit-message`) });
+  const fill = (overwrite: boolean) =>
+    generate
+      .mutateAsync()
+      .then(({ message: draft }) => {
+        if (draft) setMessage((cur) => (overwrite || !cur.trim() ? draft : cur));
+      })
+      .catch(() => {});
+
+  // Auto-draft a message once the diff has loaded and there is something to
+  // commit — never on a clean tree. The ref keeps it to a single draft per open
+  // (and dodges StrictMode's double-invoke in dev).
+  const drafted = useRef(false);
+  const hasChanges = Boolean(diff?.available) && (diff?.files.length ?? 0) > 0;
+  useEffect(() => {
+    if (drafted.current || !hasChanges) return;
+    drafted.current = true;
+    void fill(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChanges]);
+
   if (diff && !diff.available) {
     return <EmptyState title="Not a git repository" hint="This project's folder isn't a git repo, or it's unavailable." />;
   }
@@ -360,8 +381,24 @@ function CommitPanel({ projectId }: { projectId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Mono>message</Mono>
-        <Textarea autoFocus className="mt-1.5" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Commit message…" />
+        <div className="flex items-center justify-between">
+          <Mono>message</Mono>
+          <button
+            onClick={() => void fill(true)}
+            disabled={generate.isPending || files.length === 0}
+            className="micro hover:text-ink disabled:opacity-40"
+          >
+            {generate.isPending ? "generating…" : "regenerate"}
+          </button>
+        </div>
+        <Textarea
+          autoFocus
+          className="mt-1.5"
+          rows={3}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder={generate.isPending ? "Generating commit message…" : "Commit message…"}
+        />
       </div>
 
       <div className="flex items-center gap-2">

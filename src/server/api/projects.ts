@@ -2,6 +2,7 @@ import { Router } from "express";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { generateCommitMessage } from "../agents/commitMessage";
 import { projectsRepo } from "../db/projects";
 import { commit, gitStatus, listBranches, push, runDiff, switchBranch } from "../git";
 import { CommitInput, CreateProjectInput, SwitchBranchInput, UpdateProjectInput } from "../../shared/types";
@@ -83,6 +84,19 @@ projectsRouter.get("/projects/:id/git-status", (req, res) => {
     return;
   }
   res.json(gitStatus(project.path));
+});
+
+projectsRouter.post("/projects/:id/commit-message", async (req, res) => {
+  const project = projectsRepo.get(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  try {
+    res.json({ message: await generateCommitMessage(runDiff(project.path)) });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message || "failed to generate commit message" });
+  }
 });
 
 projectsRouter.post("/projects/:id/commit", (req, res) => {
