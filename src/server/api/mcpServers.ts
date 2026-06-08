@@ -59,6 +59,7 @@ mcpServersRouter.post("/mcp-servers/:id/test", async (req, res) => {
     const { toolNames } = await testMcpServer(server);
     res.json({ ok: true, toolCount: toolNames.length, toolNames });
   } catch (err) {
+    console.error(`[mcp] test failed for "${server.name}": ${(err as Error).message}`);
     res.status(400).json({ error: (err as Error).message });
   }
 });

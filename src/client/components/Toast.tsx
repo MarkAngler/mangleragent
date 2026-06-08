@@ -25,7 +25,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (input: ToastInput) => {
       const id = nextId.current++;
       setToasts((current) => [...current, { ...input, id }]);
-      setTimeout(() => dismiss(id), DISMISS_MS);
+      // Errors stay until clicked so the full message can be read; others auto-dismiss.
+      if (input.tone !== "bad") setTimeout(() => dismiss(id), DISMISS_MS);
     },
     [dismiss],
   );
@@ -49,7 +50,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-medium text-ink">{toast.title}</span>
-                {toast.body && <span className="mt-0.5 block truncate text-sm text-muted">{toast.body}</span>}
+                {toast.body && <span className="mt-0.5 block whitespace-pre-wrap break-words text-sm text-muted">{toast.body}</span>}
               </span>
             </button>
           </Card>
