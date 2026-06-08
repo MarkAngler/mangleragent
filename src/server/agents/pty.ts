@@ -7,9 +7,11 @@ import type { Terminal as HeadlessTerminal } from "@xterm/headless";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebSocketServer, type WebSocket } from "ws";
 import { runsRepo } from "../db/runs";
+import type { TerminalCli } from "../../shared/types";
 import { broadcast, registerUpgradeHandler } from "../realtime/hub";
 
 const CLAUDE_BIN = process.env.MANGLED_CLAUDE_BIN ?? "claude";
+const CODEX_BIN = process.env.MANGLED_CODEX_BIN ?? "codex";
 const SCROLLBACK_ROWS = 1000;
 
 interface PtySession {
@@ -30,15 +32,16 @@ interface SpawnOpts {
   resume?: boolean;
 }
 
-export function ptyArgs(opts?: SpawnOpts): string[] {
-  if (!opts?.sessionId) return [];
+export function ptyArgs(cli: TerminalCli, opts?: SpawnOpts): string[] {
+  // codex has no session-id/resume flags; it manages its own sessions.
+  if (cli === "codex" || !opts?.sessionId) return [];
   return opts.resume ? ["--resume", opts.sessionId] : ["--session-id", opts.sessionId];
 }
 
-export function startPtySession(runId: string, cwd: string, opts?: SpawnOpts): void {
+export function startPtySession(runId: string, cwd: string, cli: TerminalCli, opts?: SpawnOpts): void {
   let term: IPty;
   try {
-    term = nodePty.spawn(CLAUDE_BIN, ptyArgs(opts), {
+    term = nodePty.spawn(cli === "codex" ? CODEX_BIN : CLAUDE_BIN, ptyArgs(cli, opts), {
       name: "xterm-256color",
       cols: 80,
       rows: 24,
@@ -107,7 +110,7 @@ function attachSocket(runId: string, ws: WebSocket): void {
     // run's recorded conversation, or fresh for legacy runs that predate session tracking.
     const run = runsRepo.get(runId);
     if (run?.kind === "pty") {
-      startPtySession(runId, run.cwd, run.sdkSessionId ? { sessionId: run.sdkSessionId, resume: true } : undefined);
+      startPtySession(runId, run.cwd, run.cli ?? "claude", run.sdkSessionId ? { sessionId: run.sdkSessionId, resume: true } : undefined);
       session = sessions.get(runId);
     }
   }

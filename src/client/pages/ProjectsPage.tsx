@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
-import type { AgentRun, Project } from "../../shared/types";
+import type { AgentRun, Project, TerminalCli } from "../../shared/types";
 import { Button, Card, Drawer, EmptyState, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { FolderPicker } from "../components/FolderPicker";
 import { usePageTitle } from "../components/PageTitleProvider";
@@ -55,7 +55,8 @@ export function ProjectsPage() {
   });
 
   const openTerminal = useMutation({
-    mutationFn: (id: string) => post<AgentRun>("/runs/pty", { projectId: id, ticketId: null }),
+    mutationFn: (vars: { id: string; cli: TerminalCli }) =>
+      post<AgentRun>("/runs/pty", { projectId: vars.id, ticketId: null, cli: vars.cli }),
     onSuccess: (run) => navigate(`/agents?run=${run.id}`),
     onError: (err) => alert((err as Error).message),
   });
@@ -89,8 +90,11 @@ export function ProjectsPage() {
                   <p className="mt-1 truncate font-mono text-[12px] text-muted">{project.path}</p>
                 </Link>
                 <div className="flex shrink-0 items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button onClick={() => openTerminal.mutate(project.id)} disabled={openTerminal.isPending}>
+                  <button onClick={() => openTerminal.mutate({ id: project.id, cli: "claude" })} disabled={openTerminal.isPending}>
                     <Mono className="hover:text-accent">terminal</Mono>
+                  </button>
+                  <button onClick={() => openTerminal.mutate({ id: project.id, cli: "codex" })} disabled={openTerminal.isPending}>
+                    <Mono className="hover:text-accent">codex</Mono>
                   </button>
                   <button onClick={() => openVscode.mutate(project.id)} disabled={openVscode.isPending}>
                     <Mono className="hover:text-accent">vscode</Mono>

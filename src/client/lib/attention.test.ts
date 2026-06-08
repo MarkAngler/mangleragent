@@ -13,6 +13,7 @@ function run(id: string, status: AgentRunStatus): AgentRun {
     approver: "human",
     permissionMode: "default",
     model: null,
+    cli: null,
     sdkSessionId: null,
     cwd: "/tmp",
     agentDef: null,

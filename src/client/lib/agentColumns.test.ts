@@ -13,6 +13,7 @@ function run(id: string, projectId: string | null): AgentRun {
     approver: "human",
     permissionMode: "plan",
     model: null,
+    cli: null,
     sdkSessionId: null,
     cwd: "/x",
     agentDef: null,

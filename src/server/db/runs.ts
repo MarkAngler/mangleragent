@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db, now } from "./index";
-import type { AgentRun, AgentRunKind, AgentRunStatus, Approver } from "../../shared/types";
+import type { AgentRun, AgentRunKind, AgentRunStatus, Approver, TerminalCli } from "../../shared/types";
 
 interface RunRow {
   id: string;
@@ -12,6 +12,7 @@ interface RunRow {
   approver: Approver;
   permission_mode: string;
   model: string | null;
+  cli: TerminalCli | null;
   sdk_session_id: string | null;
   cwd: string;
   agent_def: string | null;
@@ -31,6 +32,7 @@ function toRun(r: RunRow): AgentRun {
     approver: r.approver,
     permissionMode: r.permission_mode,
     model: r.model,
+    cli: r.cli,
     sdkSessionId: r.sdk_session_id,
     cwd: r.cwd,
     agentDef: r.agent_def,
@@ -61,6 +63,7 @@ export const runsRepo = {
     approver?: Approver;
     permissionMode?: string;
     model?: string | null;
+    cli?: TerminalCli | null;
     cwd: string;
     agentDef?: string | null;
   }): AgentRun {
@@ -74,6 +77,7 @@ export const runsRepo = {
       approver: input.approver ?? "human",
       permissionMode: input.permissionMode ?? "plan",
       model: input.model ?? null,
+      cli: input.cli ?? null,
       sdkSessionId: null,
       cwd: input.cwd,
       agentDef: input.agentDef ?? null,
@@ -83,8 +87,8 @@ export const runsRepo = {
     };
     db()
       .prepare(
-        `INSERT INTO agent_runs (id, project_id, ticket_id, kind, title, status, approver, permission_mode, model, sdk_session_id, cwd, agent_def, summary, created_at, ended_at)
-         VALUES (@id, @projectId, @ticketId, @kind, @title, @status, @approver, @permissionMode, @model, @sdkSessionId, @cwd, @agentDef, @summary, @createdAt, @endedAt)`,
+        `INSERT INTO agent_runs (id, project_id, ticket_id, kind, title, status, approver, permission_mode, model, cli, sdk_session_id, cwd, agent_def, summary, created_at, ended_at)
+         VALUES (@id, @projectId, @ticketId, @kind, @title, @status, @approver, @permissionMode, @model, @cli, @sdkSessionId, @cwd, @agentDef, @summary, @createdAt, @endedAt)`,
       )
       .run(run);
     return run;

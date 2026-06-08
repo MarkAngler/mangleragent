@@ -150,6 +150,10 @@ export type UpdateScheduleInput = z.infer<typeof UpdateScheduleInput>;
 export const AgentRunKind = z.enum(["pty", "orchestrated"]);
 export type AgentRunKind = z.infer<typeof AgentRunKind>;
 
+// Which interactive coding-agent CLI a pty terminal spawns. Null on orchestrated runs.
+export const TerminalCli = z.enum(["claude", "codex"]);
+export type TerminalCli = z.infer<typeof TerminalCli>;
+
 export const AgentRunStatus = z.enum(["planning", "awaiting_approval", "running", "done", "failed", "stopped"]);
 export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
 
@@ -166,6 +170,7 @@ export const AgentRun = z.object({
   approver: Approver,
   permissionMode: z.string(),
   model: z.string().nullable(),
+  cli: TerminalCli.nullable(),
   sdkSessionId: z.string().nullable(),
   cwd: z.string(),
   agentDef: z.string().nullable(),
@@ -178,6 +183,7 @@ export type AgentRun = z.infer<typeof AgentRun>;
 export const CreatePtyRunInput = z.object({
   projectId: z.string(),
   ticketId: z.string().nullable().optional(),
+  cli: TerminalCli.optional(),
 });
 export type CreatePtyRunInput = z.infer<typeof CreatePtyRunInput>;
 

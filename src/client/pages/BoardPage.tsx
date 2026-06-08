@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, patch, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import { appendPosition, insertPosition } from "../../shared/board";
-import type { AgentRun, Column, GitBranches, GitStatus, Project, RunDiff, Ticket } from "../../shared/types";
+import type { AgentRun, Column, GitBranches, GitStatus, Project, RunDiff, TerminalCli, Ticket } from "../../shared/types";
 import { Button, Drawer, EmptyState, Input, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { DiffFileList } from "../components/DiffViewer";
 import { usePageTitle } from "../components/PageTitleProvider";
@@ -52,7 +52,8 @@ export function BoardPage() {
     onSuccess: invalidate,
   });
   const openTerminal = useMutation({
-    mutationFn: (vars: { ticketId?: string }) => post<AgentRun>("/runs/pty", { projectId, ticketId: vars.ticketId ?? null }),
+    mutationFn: (vars: { ticketId?: string; cli: TerminalCli }) =>
+      post<AgentRun>("/runs/pty", { projectId, ticketId: vars.ticketId ?? null, cli: vars.cli }),
     onSuccess: (run) => navigate(`/agents?run=${run.id}`),
   });
   const openVscode = useMutation({
@@ -116,7 +117,8 @@ export function BoardPage() {
               <BranchSwitcher projectId={projectId} />
               <Button onClick={() => setCommitOpen(true)}>Commit…</Button>
               <Button onClick={() => openVscode.mutate()} disabled={openVscode.isPending}>Open in VS Code</Button>
-              <Button onClick={() => openTerminal.mutate({})}>Open terminal</Button>
+              <Button onClick={() => openTerminal.mutate({ cli: "claude" })}>Open terminal</Button>
+              <Button onClick={() => openTerminal.mutate({ cli: "codex" })}>Open Codex</Button>
             </div>
           }
         />
@@ -224,7 +226,7 @@ export function BoardPage() {
                 position: appendPosition(columnTickets(columnId).filter((t) => t.id !== openTicket.id).map((t) => t.position)),
               })
             }
-            onOpenTerminal={() => openTerminal.mutate({ ticketId: openTicket.id })}
+            onOpenTerminal={(cli) => openTerminal.mutate({ ticketId: openTicket.id, cli })}
             onDelegate={(approver) => delegate.mutate({ ticketId: openTicket.id, approver })}
             onDelete={() => {
               remove.mutate(openTicket.id);
@@ -403,7 +405,7 @@ function TicketEditor({
   columns: Column[];
   onSave: (patch: Partial<Pick<Ticket, "title" | "body" | "labels">>) => void;
   onMoveColumn: (columnId: string) => void;
-  onOpenTerminal: () => void;
+  onOpenTerminal: (cli: TerminalCli) => void;
   onDelegate: (approver: "human" | "agent") => void;
   onDelete: () => void;
 }) {
@@ -454,7 +456,8 @@ function TicketEditor({
       <div className="border-t border-hairline pt-4">
         <Mono>agents</Mono>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button onClick={onOpenTerminal}>Open terminal</Button>
+          <Button onClick={() => onOpenTerminal("claude")}>Open terminal</Button>
+          <Button onClick={() => onOpenTerminal("codex")}>Open Codex</Button>
           <select
             value={approver}
             onChange={(e) => setApprover(e.target.value as "agent" | "human")}

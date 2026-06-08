@@ -39,7 +39,8 @@ runsRouter.post("/runs/pty", (req, res) => {
     return;
   }
   const ticket = parsed.data.ticketId ? ticketsRepo.get(parsed.data.ticketId) : undefined;
-  const title = ticket ? ticket.title : "Terminal";
+  const cli = parsed.data.cli ?? "claude";
+  const title = ticket ? ticket.title : cli === "codex" ? "Codex" : "Terminal";
 
   const run = runsRepo.create({
     projectId: project.id,
@@ -49,13 +50,19 @@ runsRouter.post("/runs/pty", (req, res) => {
     status: "running",
     approver: "human",
     permissionMode: "interactive",
+    cli,
     cwd: project.path,
   });
-  // Pin a known session id so the terminal can be resumed (claude --resume) after a restart.
-  const sessionId = randomUUID();
-  runsRepo.setSessionId(run.id, sessionId);
-  run.sdkSessionId = sessionId;
-  startPtySession(run.id, project.path, { sessionId });
+  // Claude can pin a known session id so the terminal can be resumed (claude --resume) after a
+  // restart; codex has no equivalent flag, so it reattaches fresh (sdk_session_id stays null).
+  if (cli === "claude") {
+    const sessionId = randomUUID();
+    runsRepo.setSessionId(run.id, sessionId);
+    run.sdkSessionId = sessionId;
+    startPtySession(run.id, project.path, cli, { sessionId });
+  } else {
+    startPtySession(run.id, project.path, cli);
+  }
   res.status(201).json(run);
 });
 

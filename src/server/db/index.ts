@@ -23,6 +23,10 @@ export function initDb(): Database.Database {
   if (!conversationCols.some((c) => c.name === "genie_conversation_id")) {
     database.exec("ALTER TABLE conversations ADD COLUMN genie_conversation_id TEXT");
   }
+  const runCols = database.prepare("PRAGMA table_info(agent_runs)").all() as { name: string }[];
+  if (!runCols.some((c) => c.name === "cli")) {
+    database.exec("ALTER TABLE agent_runs ADD COLUMN cli TEXT");
+  }
   dropLegacyProviderCheck(database);
   return database;
 }

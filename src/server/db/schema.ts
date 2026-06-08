@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   approver        TEXT NOT NULL DEFAULT 'human' CHECK (approver IN ('human','agent')),
   permission_mode TEXT NOT NULL DEFAULT 'plan',
   model           TEXT,
+  -- Which CLI a pty terminal spawns ('claude' | 'codex'); null on orchestrated runs.
+  -- No CHECK: the TerminalCli Zod enum gates this at the POST boundary.
+  cli             TEXT,
   sdk_session_id  TEXT,
   cwd             TEXT NOT NULL,
   agent_def       TEXT,
