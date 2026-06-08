@@ -4,6 +4,7 @@ import { del, get, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import type { ChatMessage, Conversation } from "../../shared/types";
 import { Button, Mono, StatusDot, Textarea } from "../components/ui";
+import { MarkdownMessage } from "../components/MarkdownMessage";
 import { usePageTitle } from "../components/PageTitleProvider";
 
 interface ToolEvent {
@@ -208,7 +209,7 @@ export function ManglerPage() {
                 ))}
               </div>
             )}
-            {streamingText && <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{streamingText}</p>}
+            {streamingText && <MarkdownMessage className="mt-2" text={streamingText} />}
           </div>
         )}
         {pendingCommands.length > 0 && (
@@ -291,7 +292,7 @@ function MessageView({ message }: { message: ChatMessage }) {
           ))}
         </div>
       )}
-      {text && <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{text}</p>}
+      {text && <MarkdownMessage className="mt-2" text={text} />}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { del, get, post } from "../lib/api";
 import { useWsMessage } from "../lib/ws";
 import type { ChatMessage, Conversation, RegisteredAgent } from "../../shared/types";
 import { Button, Mono, StatusDot, Textarea } from "../components/ui";
+import { MarkdownMessage } from "../components/MarkdownMessage";
 import { usePageTitle } from "../components/PageTitleProvider";
 
 const NEW_CHAT = "__new__";
@@ -143,7 +144,7 @@ export function ExternalAgentChatPage() {
         {running && streamingText && (
           <div className="max-w-2xl">
             <Mono>{agent?.name ?? "agent"}</Mono>
-            <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{streamingText}</p>
+            <MarkdownMessage className="mt-2" text={streamingText} />
           </div>
         )}
         {running && !streamingText && <p className="text-sm text-faint">Thinking…</p>}
@@ -192,7 +193,7 @@ function MessageView({ message }: { message: ChatMessage }) {
   return (
     <div className="max-w-2xl">
       <Mono>agent</Mono>
-      <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{text}</p>
+      <MarkdownMessage className="mt-2" text={text} />
     </div>
   );
 }
