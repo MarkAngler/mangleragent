@@ -107,6 +107,8 @@ export function ManglerPage() {
     }
   });
 
+  const stop = useMutation({ mutationFn: () => post(`/conversations/${activeIdRef.current}/stop`) });
+
   const decideCommand = useMutation({
     mutationFn: (vars: { commandId: string; approved: boolean }) => post(`/commands/${vars.commandId}/decide`, { approved: vars.approved }),
   });
@@ -241,9 +243,15 @@ export function ManglerPage() {
             rows={2}
             placeholder="Message Mangler…  (Enter to send, Shift+Enter for newline)"
           />
-          <Button variant="solid" onClick={() => void send()} disabled={running || !input.trim()}>
-            {running ? "…" : "Send"}
-          </Button>
+          {running ? (
+            <Button variant="solid" onClick={() => stop.mutate()}>
+              Stop
+            </Button>
+          ) : (
+            <Button variant="solid" onClick={() => void send()} disabled={!input.trim()}>
+              Send
+            </Button>
+          )}
         </div>
       </div>
 

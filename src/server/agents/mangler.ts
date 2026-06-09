@@ -74,6 +74,17 @@ export function manglerAgentsPrompt(): string {
 
 const MAX_TURNS = 12;
 
+// In-flight Mangler turns, keyed by conversation, so a Stop request can abort the
+// streaming completion (mirrors the SDK-run registry in runEngine.ts).
+const activeManglerTurns = new Map<string, AbortController>();
+
+export function stopMangler(conversationId: string): boolean {
+  const controller = activeManglerTurns.get(conversationId);
+  if (!controller) return false;
+  controller.abort();
+  return true;
+}
+
 function summarize(name: string, output: unknown): string | undefined {
   if (output && typeof output === "object" && "error" in output) return `error: ${String((output as { error: unknown }).error)}`;
   const out = output as Record<string, unknown>;
@@ -139,23 +150,39 @@ export async function runMangler(conversationId: string, modelOverride?: string)
   const mcp = await loadMcpToolset();
   const tools = [...anthropicTools, ...mcp.tools];
 
+  const controller = new AbortController();
+  activeManglerTurns.set(conversationId, controller);
+
+  // Text streamed for the current turn, accumulated so a Stop mid-stream can persist
+  // the partial reply (the turn's assistant message is otherwise committed only after
+  // the stream completes, which an abort skips).
+  let partial = "";
+  const onText = (text: string) => {
+    partial += text;
+    broadcast({ type: "mangler.delta", conversationId, text });
+  };
+
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const onText = (text: string) => broadcast({ type: "mangler.delta", conversationId, text });
+      if (controller.signal.aborted) break;
+      partial = "";
       let content: Anthropic.ContentBlockParam[];
       let isToolUse: boolean;
       if (provider === "databricks") {
-        const result = await streamDatabricks({ model, system, messages, tools, onText });
+        const result = await streamDatabricks({ model, system, messages, tools, onText, signal: controller.signal });
         content = result.content;
         isToolUse = result.stopReason === "tool_use";
       } else {
-        const stream = getAnthropic().messages.stream({
-          model,
-          max_tokens: 4096,
-          system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-          tools,
-          messages,
-        });
+        const stream = getAnthropic().messages.stream(
+          {
+            model,
+            max_tokens: 4096,
+            system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+            tools,
+            messages,
+          },
+          { signal: controller.signal },
+        );
         stream.on("text", onText);
         const final = await stream.finalMessage();
         content = final.content;
@@ -185,6 +212,13 @@ export async function runMangler(conversationId: string, modelOverride?: string)
     broadcast({ type: "mangler.done", conversationId });
     void recordTurn(conversationId, userText, assistantText);
   } catch (err) {
-    broadcast({ type: "mangler.error", conversationId, error: (err as Error).message });
+    if (controller.signal.aborted) {
+      if (partial) messagesRepo.add(conversationId, "assistant", [{ type: "text", text: partial }]);
+      broadcast({ type: "mangler.done", conversationId });
+    } else {
+      broadcast({ type: "mangler.error", conversationId, error: (err as Error).message });
+    }
+  } finally {
+    activeManglerTurns.delete(conversationId);
   }
 }

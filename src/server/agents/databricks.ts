@@ -111,14 +111,18 @@ export async function streamDatabricks(args: {
   messages: Anthropic.MessageParam[];
   tools: Anthropic.Tool[];
   onText: (text: string) => void;
+  signal?: AbortSignal;
 }): Promise<ManglerCompletion> {
-  const stream = await getClient().chat.completions.create({
-    model: args.model,
-    max_tokens: 4096,
-    messages: toOpenAiMessages(args.system, args.messages),
-    tools: toOpenAiTools(args.tools),
-    stream: true,
-  });
+  const stream = await getClient().chat.completions.create(
+    {
+      model: args.model,
+      max_tokens: 4096,
+      messages: toOpenAiMessages(args.system, args.messages),
+      tools: toOpenAiTools(args.tools),
+      stream: true,
+    },
+    { signal: args.signal },
+  );
   return accumulateStream(stream, args.onText);
 }
 

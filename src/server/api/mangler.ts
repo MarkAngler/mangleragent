@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { conversationsRepo, messagesRepo } from "../db/chat";
-import { runMangler } from "../agents/mangler";
+import { runMangler, stopMangler } from "../agents/mangler";
 import { runExternalAgentTurn } from "../agents/externalAgentChat";
 import { runLocalAgentTurn } from "../agents/agentRun";
 import { decideCommand } from "../agents/manglerCommands";
@@ -48,6 +48,15 @@ manglerRouter.post("/conversations/:id/messages", (req, res) => {
   else if (conversation.localAgentId) void runLocalAgentTurn(conversation.id);
   else void runMangler(conversation.id);
   res.status(202).json({ ok: true });
+});
+
+manglerRouter.post("/conversations/:id/stop", (req, res) => {
+  if (!conversationsRepo.get(req.params.id)) {
+    res.status(404).json({ error: "conversation not found" });
+    return;
+  }
+  stopMangler(req.params.id);
+  res.json({ ok: true });
 });
 
 manglerRouter.delete("/conversations/:id", (req, res) => {
