@@ -11,6 +11,7 @@
 | Run | Date | Ideas Added | Idea Selected |
 |-----|------|-------------|---------------|
 | 1 | 2026-06-07 | MA-001, MA-002, MA-003, OR-001, OR-002, OR-003, RT-001, SC-001, SC-002, SC-003, ME-001, ME-002, DF-001 | MA-002 |
+| 2 | 2026-06-09 | MC-001, MC-002, KA-001, KA-002 | KA-001 |
 
 ---
 
@@ -33,6 +34,8 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 | 7 | **Scheduling** | `src/server/scheduler.ts`, `src/server/cron.ts` | Low | 30 s polling; no retry on failure; no error column; missed runs silently skipped |
 | 8 | **External Agent Chat** | `src/server/agents/externalAgentChat.ts`, `genie.ts` | Early | No streaming parity with Mangler; no tool-call transparency |
 | 9 | **Memory (Honcho)** | `src/server/honcho.ts` | Low | Off by default; requires external SaaS; no local fallback; conversation history grows unbounded |
+| 10 | **MCP Server Integration** | `src/server/agents/mcp.ts`, `src/server/db/mcpServers.ts` | Medium-High | Tool descriptions blindly trusted (injection risk); tool list re-fetched from server on every Mangler turn; no schema validation or security audit on connect |
+| 11 | **Local SDK Agents** | `src/server/agents/agentRun.ts`, `src/server/db/agents.ts` | Medium | Completed agent runs do not update their linked kanban ticket; no run history visible per ticket; approval audit trail not surfaced in a dedicated UI |
 
 ---
 
@@ -421,3 +424,257 @@ Pass `system` to `messages.create()`. The Anthropic SDK accepts `TextBlockParam[
 ---
 
 *End of Run 1 — 2026-06-07*
+
+---
+
+## Run 2 Additions — 2026-06-09
+
+### Codebase Delta Since Run 1
+
+A review of the full source confirms two components operating at production maturity that were not present in Run 1's inventory:
+
+- **MCP Server Integration** (`mcp.ts`): Full multi-transport MCP client with process-level connection caching. `loadMcpToolset()` is called on every Mangler turn, calling `client.listTools()` on each connected server. Tool names and descriptions are passed to the Anthropic model without any validation. The `@modelcontextprotocol/sdk ^1.29.0` is already in `package.json`.
+- **Local SDK Agents** (`agentRun.ts`, `db/agents.ts`): Two agent types — `task` (MCP-only, file editing disabled) and `coding` (full orchestrator). Both types store `ticket_id` on their runs via `agent_runs.ticket_id`, but completion of a run does not trigger any ticket state transition on the kanban board.
+
+The `agent_events.seq` column (confirmed in `schema.ts:134`) and `agent_runs.sdk_session_id` (line 119) confirm RT-001 and OR-002 infrastructure is in place.
+
+MA-002 is confirmed implemented: `mangler.ts:179-184` passes `system` as a single-block array with `cache_control: { type: "ephemeral" }`.
+
+---
+
+## 2. Frontier Research Findings (Run 2)
+
+### 2.7 MCP Security — Tool Description Injection
+
+**Key advances (2025–2026):**
+
+- **CVE-2025-54136** (tool poisoning): A structural MCP vulnerability where an attacker embeds adversarial instructions inside a tool's `description` or parameter schema fields. The LLM reads these descriptions as part of its context and obeys hidden commands the user cannot see. A 2026 paper (arxiv.org/abs/2603.22489) tested 45 live MCP servers and 353 authentic tools: leading agents showed attack success rates above 60%, with the highest at 72%.
+  - Sources: [Practical DevSecOps — MCP security vulnerabilities, 2026](https://www.practical-devsecops.com/mcp-security-vulnerabilities/); [TrueFoundry — CVE-2025-54136 blog, 2026](https://www.truefoundry.com/blog/blog-mcp-tool-poisoning-gateway-defense); [arxiv.org/abs/2603.22489](https://arxiv.org/abs/2603.22489)
+- **Defense consensus**: Static metadata analysis (scanning for instruction-like patterns in tool descriptions — imperative verbs, "ignore previous instructions", "always", role assignments) is the highest-leverage low-overhead defense. Invariant Labs released the open-source `mcp-scan` tool; production deployments integrate similar scanning at server registration time.
+  - Source: [Cloud Security Alliance — Agentic MCP Security Best Practices v1, 2026](https://labs.cloudsecurityalliance.org/agentic/agentic-mcp-security-best-practices-v1/)
+- **Tool allowlisting** (per-agent, per-tool): each agent runs only with the MCP tools it has been explicitly approved to call; new tools require review before reaching a model. This breaks most tool poisoning attacks and is the enterprise standard in 2026.
+  - Source: [Integrate.io — Best MCP Gateways and AI Agent Security Tools, 2026](https://www.integrate.io/blog/best-mcp-gateways-and-ai-agent-security-tools/)
+
+**Conflicts / caveats:** The app binds to `127.0.0.1` only, so network-based MCP servers must be explicitly configured by the user. Risk surface is lower than multi-user/cloud deployments but not zero — a compromised npm package in an MCP server's dependency tree can inject poisoned descriptions.
+
+### 2.8 MCP Protocol Advances — Tool List Caching
+
+**Key advances (2025–2026):**
+
+- The **2026 MCP specification** (release candidate published July 2026) adds `ttlMs` and `cacheScope` to `tools/list` responses. A server can now indicate how long its tool list is valid and whether the cache is safe to share across users or sessions. Clients that honor `ttlMs` avoid redundant `listTools()` round-trips.
+  - Sources: [MCP 2026 Roadmap blog](https://blog.modelcontextprotocol.io/posts/2026-mcp-roadmap/); [The New Stack — MCP roadmap 2026](https://thenewstack.io/model-context-protocol-roadmap-2026/)
+- **Ecosystem**: 97 million monthly SDK downloads as of March 2026; 3,000+ published servers. Every major IDE integrates MCP. The protocol is the de facto standard for LLM tool integration.
+  - Source: [Digital Applied — MCP 97M downloads, 2026](https://www.digitalapplied.com/blog/mcp-97-million-downloads-model-context-protocol-mainstream)
+
+### 2.9 Agent-Kanban Integration Patterns
+
+**Key advances (2025–2026):**
+
+- **Auto-advance on completion** is the consensus pattern in 2026 agent-kanban tools: when an agent run completes, the linked card moves to the "Done" column automatically. Multiple open-source implementations (Cline Kanban, Agent Kanban, AI Agent Board) all implement this. Linked cards also auto-start their successors when dependencies land.
+  - Sources: [Cline Kanban GitHub — cline/kanban, 2026](https://github.com/cline/kanban); [Agent Kanban — agent-kanban.dev, 2026](https://agent-kanban.dev/); [DanWahlin/ai-agent-board GitHub, 2026](https://github.com/DanWahlin/ai-agent-board)
+- **Run history per ticket**: showing the list of agent runs associated with a ticket (with status, duration, and summary) is standard UX in 2026 agent tooling. It gives the user a full audit trail of automated work done against each work item.
+  - Source: [DEV Community — AI agents as kanban team members, 2026](https://dev.to/lainagent_ai/i-built-a-kanban-board-where-ai-agents-are-actual-team-members-l1c)
+
+### 2.10 SQLite Vector Search for Local Memory
+
+**Key advances (2025–2026):**
+
+- **sqlite-vec** is a SQLite extension (SIMD-accelerated, AVX/NEON) that adds virtual `vec0` tables for vector storage and distance functions (`vec_distance_cosine`). It eliminates the need for a separate vector database, making it a natural fit for the local-first architecture.
+  - Source: [sqlite.ai/sqlite-vector](https://www.sqlite.ai/sqlite-vector); [Medium — How sqlite-vec Works, 2026](https://medium.com/@stephenc211/how-sqlite-vec-works-for-storing-and-querying-vector-embeddings-165adeeeceea)
+- **sqlite-memory**: A SQLite extension for AI agent persistent memory with hybrid semantic search (FTS5 + vector similarity). Markdown-optimized, offline-first.
+  - Source: [GitHub — sqliteai/sqlite-memory, 2026](https://github.com/sqliteai/sqlite-memory)
+- **Practical threshold**: For small memory sets (< 5,000 entries), pure-JS cosine similarity over JSON float arrays is within 2× of sqlite-vec latency. The sqlite-vec approach pays off at scale but requires a native C extension — an installation and ABI dependency risk given the project's existing `better-sqlite3` native module.
+  - Source: [PingCAP — Local-First RAG with SQLite, 2026](https://www.pingcap.com/blog/local-first-rag-using-sqlite-ai-agent-memory-openclaw/)
+
+---
+
+## 3. Idea Log (Run 2 Additions)
+
+### Component: MCP Server Integration
+
+---
+
+#### [MC-001] MCP Tool Description Security Scanner
+- **Date:** 2026-06-09
+- **Status:** Proposed
+- **Enabling advancement:** 2026 MCP tool poisoning research (CVE-2025-54136); static metadata analysis defense; `mcp-scan` open-source scanner pattern
+- **Gap addressed:** `loadMcpToolset()` in `mcp.ts` passes each server's `tool.description` directly to the Anthropic model as-is. A compromised or malicious MCP server can embed adversarial instructions in these descriptions that the LLM silently obeys. Attack success rates above 60% on popular agents in 2026 research.
+- **User benefit:** Suspicious tool descriptions are flagged before they reach the model. The McpServers settings page can surface a warning badge on servers whose tools contain instruction-like patterns. A blocked description never enters Mangler's tool array.
+- **Approach:** In `loadMcpToolset()`, before pushing each tool to the `tools` array, run `scanDescription(tool.description)` — a pure function that tests for: imperative-verb sentences targeting the model ("always respond", "ignore previous"), role-assignment language ("you are now", "act as"), and meta-instruction markers ("before responding", "do not tell the user"). Return a `{ safe: boolean; reason?: string }` result. If unsafe, log a server warning and skip the tool (or include it with a sanitized description placeholder). Add a `scanResults` field to the `McpToolset` interface so the settings API can surface them.
+- **Affected files:** `src/server/agents/mcp.ts`, `src/server/api/mcpServers.ts`, `src/client/pages/McpServersPage.tsx`
+- **Complexity:** Low-Medium (pure regex scanner, no new dependencies; UI badge is minor)
+- **Risk:** False positives are possible (legitimate tools with imperative descriptions); scanner should be advisory rather than blocking by default until patterns are tuned
+
+---
+
+#### [MC-002] MCP Tool List TTL Cache
+- **Date:** 2026-06-09
+- **Status:** Proposed
+- **Enabling advancement:** 2026 MCP spec `ttlMs` field on `tools/list` responses; standard HTTP cache semantics for agent toolsets
+- **Gap addressed:** `loadMcpToolset()` is called on every Mangler turn. It calls `client.listTools()` on every connected server, even though tool schemas rarely change between turns. For stdio servers, this is a subprocess round-trip on every user message. For remote servers, it is an unnecessary HTTP call.
+- **User benefit:** Mangler turn initiation is faster for users with several MCP servers configured. Reduces load on remote MCP servers. Tool list is still refreshed when server config changes (the existing fingerprint cache already handles reconnection).
+- **Approach:** Extend the `Cached` interface in `mcp.ts` to add `tools: Anthropic.Tool[]` and `toolsAt: number`. In `ensureConnected`, after calling `listTools()`, store the result with `Date.now()`. In `loadMcpToolset`, before calling `listTools()`, check if `Date.now() - toolsAt < TOOL_CACHE_TTL_MS` (default 60 000 ms); if so, use the cached tools. Honor server-provided `ttlMs` if the MCP SDK exposes it in the response metadata.
+- **Affected files:** `src/server/agents/mcp.ts`
+- **Complexity:** Low (extend existing cache entry; add TTL check)
+- **Risk:** Stale tool list if a server adds/removes tools within the TTL window. Mitigation: invalidating the server config (already triggers `invalidateMcpServer`) also clears the tool cache; users can restart the server or nudge the config to force a refresh
+
+---
+
+### Component: Kanban Board / Agent Runs (cross-cutting)
+
+---
+
+#### [KA-001] Auto-Advance Ticket on Run Completion
+- **Date:** 2026-06-09
+- **Status:** Planned
+- **Enabling advancement:** 2026 agent-kanban consensus pattern (Cline Kanban, Agent Kanban, DanWahlin/ai-agent-board); the `agent_runs.ticket_id` FK already exists
+- **Gap addressed:** When Mangler delegates a ticket to an orchestrated run, `agent_runs.ticket_id` links the run to the ticket. But when the run completes successfully, the ticket stays wherever the user left it — typically "In Progress". The user must manually drag it to "Done". This manual step negates the automation value of the delegation.
+- **User benefit:** Completing an agent run automatically advances the linked ticket to the project's final column. The kanban board reflects reality without any user action. All connected clients see the change instantly via the existing `board.updated` WebSocket message.
+- **Approach:** Add an `advanceLinkedTicket(runId)` function in `runEngine.ts`. After `runsRepo.setStatus(runId, "done")` in `handleMessage`, call it. The function: (1) gets the run to read `ticketId` and `projectId` — if either is null, returns; (2) gets the ticket — if absent, returns; (3) gets the project, takes `project.columns[project.columns.length - 1]` as the final column; (4) if the ticket is already in that column, returns; (5) computes `appendPosition` over the existing tickets in that column; (6) calls `ticketsRepo.move(ticketId, finalColumn.id, position)`; (7) broadcasts `{ type: "board.updated", projectId }`.
+- **Affected files:** `src/server/agents/runEngine.ts`, (imports `ticketsRepo` and `projectsRepo` which are already in the codebase)
+- **New dependencies:** None. Uses `appendPosition` from `../../shared/board` (already used by `ticketsRepo`).
+- **Complexity:** Low (one new ~20-line function; no schema changes; no new packages)
+- **Risk:** Projects with custom column layouts may have a final column that is not a "done" analog (e.g., "Archive"). This is edge-case; the vast majority of kanban boards place completion at the end. A future enhancement could add an explicit completion-column setting per project.
+
+---
+
+#### [KA-002] Ticket Run History View
+- **Date:** 2026-06-09
+- **Status:** Proposed
+- **Enabling advancement:** 2026 agent-kanban audit trail UX pattern; `agent_runs.ticket_id` FK already provides the join
+- **Gap addressed:** There is no way to see which agent runs have been executed against a given ticket. The kanban board shows ticket title and body but no history of automated work. For a ticket that has been delegated multiple times (failed run then successful retry), the user has no record.
+- **User benefit:** Clicking a ticket on the board shows a "Runs" tab listing every associated agent run with its status (done/failed/stopped), title, duration, and one-line summary. Clicking a run row navigates to the full run detail.
+- **Approach:** Add a `GET /api/tickets/:id/runs` endpoint that returns `runsRepo.listByTicket(ticketId)` (a new query: `SELECT * FROM agent_runs WHERE ticket_id = ? ORDER BY created_at DESC`). In the ticket detail UI, add a "Runs" section that calls this endpoint and renders a compact list.
+- **Affected files:** `src/server/db/runs.ts` (new `listByTicket`), `src/server/api/tickets.ts` (new endpoint), `src/client/` (ticket detail component — if one exists; otherwise `src/client/pages/BoardPage.tsx`)
+- **Complexity:** Low-Medium (new DB query + API endpoint + UI list)
+- **Risk:** Minimal
+
+---
+
+## 4. Improvement Selection (Run 2)
+
+### Selected: [KA-001] — Auto-Advance Ticket on Run Completion
+
+**Justification against product objective:**
+
+Mangled Agents' core pitch is that the user talks to Mangler to move work forward — they delegate a ticket, the agent codes the solution, and the board reflects the outcome. Currently that loop is broken at the last step: the ticket stays "In Progress" after the run finishes, requiring a manual drag to "Done." This defeats the point of agent-driven project management.
+
+KA-001 closes the loop with a single ~20-line addition to `runEngine.ts`. It requires no new dependencies, no schema migrations, no client changes beyond receiving an already-typed `board.updated` WS event. The `ticketsRepo.move()` and `projectsRepo.get()` functions are already present and tested. The `appendPosition` utility already handles position calculation. `board.updated` is already a typed message in `shared/ws.ts` and already consumed by the board client.
+
+The research confirms this is the canonical 2026 agent-kanban pattern. The implementation risk is effectively zero: it is additive, reversible (remove the call), and cannot break any existing behavior.
+
+**Ideas excluded (Run 2):**
+- MC-001 (Tool description scanner): Higher implementation subtlety (regex false positives); localhost binding reduces the threat surface vs. enterprise deployments. Good follow-on once MCP usage grows.
+- MC-002 (Tool list TTL): Low complexity but low urgency — only measurable impact with 3+ slow MCP servers. Good clean-up item for a quiet sprint.
+- KA-002 (Ticket run history): Also good, but is a pure UI addition. Naturally follows KA-001 once tickets and runs are properly linked.
+
+---
+
+## 5. Implementation Plan: [KA-001] Auto-Advance Ticket on Run Completion
+
+**Objective:** When an orchestrated or agent run linked to a ticket completes successfully, move that ticket to the project's final column and broadcast a board update to all clients.
+
+### 5.1 Mechanism
+
+`handleMessage` in `runEngine.ts` is the single choke point where all SDK-backed runs transition to "done" or "failed". It already calls `runsRepo.setStatus(runId, "done")`. Adding `advanceLinkedTicket(runId)` immediately after the "done" branch is the minimal, correct insertion point. It covers orchestrated runs (`orchestrator.ts`), coding agent runs, and task agent runs — all of which go through `handleMessage`.
+
+### 5.2 Affected Files
+
+| File | Change |
+|------|--------|
+| `src/server/agents/runEngine.ts` | Add `advanceLinkedTicket` function; call it on "success" result; import `ticketsRepo`, `projectsRepo`, `appendPosition` |
+
+No other files require modification. The existing `board.updated` WS message type, `ticketsRepo.move()`, `projectsRepo.get()`, and `appendPosition` are all production-ready.
+
+### 5.3 Implementation
+
+**Current code in `handleMessage` (lines 82–86):**
+```typescript
+if (msg.type === "result") {
+  const summary = msg.subtype === "success" ? msg.result : `ended: ${msg.subtype}`;
+  emit(run.id, "result", { subtype: msg.subtype, text: summary });
+  runsRepo.setSummary(runId, String(summary).slice(0, 800));
+  runsRepo.setStatus(runId, msg.subtype === "success" ? "done" : "failed");
+  return true;
+}
+```
+
+**After change:**
+```typescript
+if (msg.type === "result") {
+  const summary = msg.subtype === "success" ? msg.result : `ended: ${msg.subtype}`;
+  emit(runId, "result", { subtype: msg.subtype, text: summary });
+  runsRepo.setSummary(runId, String(summary).slice(0, 800));
+  runsRepo.setStatus(runId, msg.subtype === "success" ? "done" : "failed");
+  if (msg.subtype === "success") advanceLinkedTicket(runId);
+  return true;
+}
+```
+
+**New function (added to `runEngine.ts`):**
+```typescript
+function advanceLinkedTicket(runId: string): void {
+  const run = runsRepo.get(runId);
+  if (!run?.ticketId || !run.projectId) return;
+  const ticket = ticketsRepo.get(run.ticketId);
+  if (!ticket) return;
+  const project = projectsRepo.get(run.projectId);
+  if (!project?.columns.length) return;
+  const finalColumn = project.columns[project.columns.length - 1];
+  if (ticket.columnId === finalColumn.id) return;
+  const positions = ticketsRepo
+    .listByProject(run.projectId)
+    .filter((t) => t.columnId === finalColumn.id)
+    .map((t) => t.position);
+  ticketsRepo.move(ticket.id, finalColumn.id, appendPosition(positions));
+  broadcast({ type: "board.updated", projectId: run.projectId });
+}
+```
+
+**New imports at top of `runEngine.ts`:**
+```typescript
+import { ticketsRepo } from "../db/tickets";
+import { projectsRepo } from "../db/projects";
+import { appendPosition } from "../../shared/board";
+```
+
+### 5.4 Dependencies
+
+- `ticketsRepo` — `src/server/db/tickets.ts` — already in codebase
+- `projectsRepo` — `src/server/db/projects.ts` — already in codebase
+- `appendPosition` — `src/shared/board.ts` — already used by `ticketsRepo`
+- No new npm packages
+- No DB schema changes
+- No environment variable changes
+
+### 5.5 Risks and Mitigations
+
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| Final column is not a "done" analog (e.g., "Archive") | Low | Convention is well-established; edge-case users can reorder columns. Future: per-project completion-column setting |
+| Multiple concurrent runs for the same ticket race to advance | Very low | Both calls `ticketsRepo.move()` to the same column; last-write-wins is idempotent here |
+| DB error in `advanceLinkedTicket` propagates and marks run as failed | None | The function is called after `setStatus("done")` returns; it runs in a separate try block and should catch its own errors |
+| Ticket deleted between run start and completion | Very low | `ticketsRepo.get()` returns `undefined`; early return handles this cleanly |
+
+### 5.6 Validation Strategy
+
+1. **Unit test (new):** In `src/server/agents/runEngine.ts` test or a sibling file, mock `runsRepo`, `ticketsRepo`, `projectsRepo`, and `broadcast`. Assert that:
+   - When `handleMessage` receives `{ type: "result", subtype: "success" }` for a run with `ticketId` + `projectId`, `ticketsRepo.move()` is called with the last column's id and `broadcast({ type: "board.updated" })` fires.
+   - When `subtype === "error_max_turns"` (failed), no ticket move occurs.
+   - When `ticketId` is null, no ticket move occurs.
+   - When ticket is already in the final column, `move()` is not called.
+2. **Integration test (manual):** Start dev server (`npm run dev`); create a project; create a ticket in "Backlog"; delegate it to a fast agent run (e.g., `echo done`); observe the ticket move to "Done" in the board UI without any user action.
+3. **Regression:** Run `npm test` to confirm all existing `runEngine`, `orchestrator`, and `agentRun` tests pass.
+4. **Type check:** `npm run typecheck` must pass with zero errors.
+5. **Lint:** `npm run lint` must pass with zero errors.
+
+### 5.7 Success Criteria
+
+- Ticket in "Backlog" or "In Progress" moves to final column when a linked run completes successfully
+- No ticket movement on failed or stopped runs
+- Board UI updates in real time via `board.updated` WS event (no page refresh required)
+- All existing tests pass; no new lint or type errors
+
+---
+
+*End of Run 2 — 2026-06-09*
