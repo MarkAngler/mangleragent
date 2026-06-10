@@ -11,6 +11,7 @@
 | Run | Date | Ideas Added | Idea Selected |
 |-----|------|-------------|---------------|
 | 1 | 2026-06-07 | MA-001, MA-002, MA-003, OR-001, OR-002, OR-003, RT-001, SC-001, SC-002, SC-003, ME-001, ME-002, DF-001 | MA-002 |
+| 2 | 2026-06-10 | PA-001, EV-001, OR-004, FTS-001 | EV-001 |
 
 ---
 
@@ -421,3 +422,286 @@ Pass `system` to `messages.create()`. The Anthropic SDK accepts `TextBlockParam[
 ---
 
 *End of Run 1 — 2026-06-07*
+
+---
+
+## Run 2 — 2026-06-10
+
+### 1. Product Comprehension Update
+
+No material changes to the core component inventory since Run 1. Key observation from code review:
+
+- **MA-002 confirmed Done:** `mangler.ts:180` passes `system` as a `TextBlockParam[]` with `cache_control: {type: "ephemeral"}`, exactly as planned. All other ideas remain Proposed.
+- **`runEngine.ts` gap confirmed:** `handleMessage()` handles `msg.type === "result"` at line 82–89 but extracts only `msg.result` (summary text) and `msg.subtype`. The SDK's `total_cost_usd` and `modelUsage` fields on the result message are ignored — supports OR-001 and the new EV-001.
+- **`agent_runs` schema gap confirmed:** No `score` or `score_reason` columns; `summary` is the only post-run quality artifact.
+- **Parallel runs confirmed absent:** `startOrchestratedRun` and `startAgentRun` are fire-and-forget functions; there is no mechanism to fan out or group multiple runs.
+
+---
+
+### 2. Frontier Research Findings (Run 2)
+
+#### 2.7 Claude Agent SDK Cost Tracking
+
+**Key advances (confirmed June 2026):**
+
+- The SDK's `result` message (`msg.type === "result"`) carries two new fields: `total_cost_usd` (number, client-side estimate) and `modelUsage` (Map of model name → `{inputTokens, outputTokens, costUsd}`). Available in TypeScript as `SDKResultMessage`.
+- Per-step usage is also available: each assistant message contains a `usage` sub-object with `input_tokens` and `output_tokens`.
+- **Important caveat:** `total_cost_usd` is computed from a price table bundled at SDK build time — it is an estimate, not an authoritative billing figure. For billing, use the Anthropic Usage API.
+- From June 15 2026, Agent SDK usage is metered separately from interactive Claude Code — making per-run cost tracking more important for users.
+  - Sources: [Claude Code Docs — Track cost and usage](https://code.claude.com/docs/en/agent-sdk/cost-tracking); [Anthropic Docs — Track cost and usage](https://platform.claude.com/docs/en/agent-sdk/cost-tracking); [Totalum — Claude Agent SDK 2026](https://www.totalum.app/blog/claude-agent-sdk-totalum-2026)
+
+#### 2.8 Parallel Fan-Out / Dynamic Workflows
+
+**Key advances (May–June 2026):**
+
+- **Opus 4.8 Dynamic Workflows** (shipped May 28 2026): Claude writes a JavaScript orchestration script that fans out to up to 1,000 subagents in parallel; used for decomposing large tasks into concurrent subtasks with automatic result merging.
+  - Source: [InfoQ — Dynamic Workflows, June 2026](https://www.infoq.com/news/2026/06/dynamic-workflows-claude-code/); [Claude Code Docs — Workflows](https://code.claude.com/docs/en/workflows)
+- **Agent Teams**: one session acts as team lead, assigns tasks to teammates (isolated context windows), synthesizes results. Relies on a shared task list as the coordination layer. Recommended team size: 3–5 for most workflows.
+  - Source: [Claude Code Docs — Agent Teams](https://code.claude.com/docs/en/agent-teams); [MindStudio — Agent Teams Parallel Agents](https://www.mindstudio.ai/blog/claude-code-agent-teams-parallel-agents)
+- **TypeScript fan-out pattern**: `Promise.all()` over multiple `query()` calls, each with its own context and isolated storage. Each sub-agent sees only what the orchestrator passes to it.
+  - Source: [Shipyard — Multi-agent orchestration for Claude Code](https://shipyard.build/blog/claude-code-multi-agent/)
+- **SQLite as workflow state**: developers have converged on SQLite-backed directed acyclic graphs for step tracking; language models interact more efficiently with targeted SQL queries than large JSON blobs.
+  - Source: [TechTimes — SQLite Beats Cloud Queues for AI Agent Orchestration](https://www.techtimes.com/articles/317448/20260530/sqlite-beats-cloud-queues-ai-agent-orchestration-obelisk-engine-creator-claims.htm)
+
+**Conflict / caveat:** Dynamic Workflows require Opus 4.8 and the latest Claude Agent SDK. Stability on long fan-outs (>50 subagents) is still community-validated.
+
+#### 2.9 LLM-as-Judge / Agent Eval Frameworks
+
+**Key advances (2026):**
+
+- **G-Eval** and **DeepEval v4.0.3**: LLM-as-judge metrics that score on task completion, tool correctness, and faithfulness; trajectory evaluation scores the full execution path, not just the final output.
+  - Source: [DigitalApplied — AI Agent Eval Frameworks 2026](https://www.digitalapplied.com/blog/ai-agent-eval-frameworks-testing-guide-2026); [MLflow — Top 5 Agent Evaluation Frameworks](https://mlflow.org/top-5-agent-evaluation-frameworks/)
+- **Eval-driven development**: CI pattern — eval dataset of 50 examples, pass threshold ≥0.85 average score. Now standard in production agentic pipelines.
+  - Source: [Red Hat Developer — Eval-driven development, March 2026](https://developers.redhat.com/articles/2026/03/23/eval-driven-development-build-evaluate-ai-agents)
+- **Anthropic three-agent harness** (April 2026): separate planning, generation, and evaluation agents with structured handoff artifacts and context resets between stages. The evaluation agent is a first-class participant, not an afterthought.
+  - Source: [InfoQ — Anthropic three-agent harness, April 2026](https://www.infoq.com/news/2026/04/anthropic-three-agent-harness-ai/)
+- **Key finding**: "Trajectory evaluation scores the entire execution path — every tool call, every intermediate reasoning step, every turn — not just the final answer." This is achievable with `agent_events` rows already stored per run.
+  - Source: [DigitalApplied — AI Agent Evaluation Pipeline 2026](https://www.digitalapplied.com/blog/ai-agent-evaluation-pipeline-2026-testing-methodology)
+
+#### 2.10 Structured Handoff Artifacts
+
+**Key advances (April 2026):**
+
+- **Anthropic structured outputs**: `betas: ["output-schema-2025-02-19"]` on the messages API guarantees JSON-schema-compliant responses via constrained decoding; eliminates parsing errors; type-safe.
+  - Source: [Anthropic — Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+- **Three-agent harness handoff artifacts**: typed JSON blobs that define the boundary between agents, enabling context resets without information loss. Each subsequent agent receives only the structured output, not the full prior context window.
+  - Source: [InfoQ — Anthropic three-agent harness, April 2026](https://www.infoq.com/news/2026/04/anthropic-three-agent-harness-ai/)
+
+#### 2.11 SQLite Vector Search for Local Memory
+
+**Key advances (2025–2026):**
+
+- **`sqlite-vec`** (asg017, GitHub): pure-C SQLite extension for vector search; vectors stored as BLOBs; supports cosine/L2 distance; runs anywhere SQLite runs; zero infrastructure; Apache-2.0 license.
+  - Source: [GitHub — asg017/sqlite-vec](https://github.com/asg017/sqlite-vec); [DEV Community — sqlite-vec embedded intelligence](https://dev.to/aairom/embedded-intelligence-how-sqlite-vec-delivers-fast-local-vector-search-for-ai-3dpb)
+- **OpenClaw**: RAG-lite local indexing powered entirely by SQLite — chunks Markdown, generates embeddings, stores in a `.sqlite` file. Demonstrates that ME-001's local memory concept is fully proven in the wild.
+  - Source: [PingCAP — Local-First RAG with SQLite](https://www.pingcap.com/blog/local-first-rag-using-sqlite-ai-agent-memory-openclaw/)
+- **Relevance to ME-001**: `sqlite-vec` resolves the "SQLite is not a purpose-built vector store" risk in ME-001's entry. Cosine similarity is a native distance function, not a JS loop.
+
+#### 2.12 SQLite FTS5 for Run Search
+
+- **SQLite FTS5** (stable, built-in since SQLite 3.9 / 2015): `CREATE VIRTUAL TABLE ... USING fts5(...)` enables full-text search over text columns. Query with `WHERE tbl MATCH ?`. Porter stemmer available. Zero new dependencies.
+- **Pattern**: shadow-index `agent_runs(title, summary)` with a `runs_fts` FTS5 virtual table; sync via repo layer on insert/update. SQLite `INSERT INTO runs_fts(runs_fts, rank) VALUES('rank', 'bm25(10,1)')` tunes BM25 ranking.
+  - Source: [SQLite FTS5 documentation](https://www.sqlite.org/fts5.html) — VERIFIED
+
+---
+
+### 3. Idea Log (Run 2)
+
+---
+
+### Component: Agent Teams / Parallel Orchestration *(new component)*
+
+---
+
+#### [PA-001] Parallel Agent Fan-Out from Mangler
+- **Date:** 2026-06-10
+- **Status:** Proposed
+- **Enabling advancement:** Claude Agent SDK Dynamic Workflows (Opus 4.8, May 2026); Agent Teams coordination pattern; `Promise.all()` fan-out over multiple `query()` calls
+- **Gap addressed:** Mangler's `delegate_ticket` tool creates exactly one orchestrated run per call. Tasks that decompose into independent sub-tasks (e.g., "fix failing tests in each of these 5 modules") require N sequential delegations, each blocking on human plan approval. There is no built-in way to dispatch concurrent sub-runs and wait for all to complete.
+- **User benefit:** Tell Mangler "run the test-fixer on all five packages in parallel"; it fans out five runs simultaneously, each with an isolated context. The board updates as each completes. Total wall-clock time drops from 5× a single run to roughly 1× (plus coordination overhead).
+- **Approach:** Add a `delegate_parallel` tool to `manglerTools.ts` that accepts an array of `{ticketId?, prompt}` objects. For each, call `runsRepo.create()` and kick off `startOrchestratedRun()`. Track them under a new `parent_run_id TEXT` FK on `agent_runs`. Broadcast a `batch.started` WS event with all child run IDs. The batch is complete when all children reach terminal status. In the UI, the Active Agents page groups child runs under their parent.
+- **Affected files:** `src/server/agents/manglerTools.ts`, `src/server/db/schema.ts` (new FK), `src/server/db/runs.ts`, `src/shared/types.ts`, `src/client/pages/ActiveAgentsPage.tsx`
+- **Complexity:** High (new schema column, new tool, UI grouping, coordination logic)
+- **Risk:** Concurrent human-approval prompts for N plan reviews simultaneously is disruptive; needs a default `approver: "agent"` for fan-out sub-runs
+
+---
+
+### Component: Observability / Eval *(new component)*
+
+---
+
+#### [EV-001] LLM-as-Judge Run Quality Score
+- **Date:** 2026-06-10
+- **Status:** Planned
+- **Enabling advancement:** G-Eval / trajectory evaluation pattern (DeepEval v4.0.3, 2026); Anthropic three-agent harness QA step (InfoQ April 2026); existing `agent_events` table already stores full execution trajectory per run
+- **Gap addressed:** When an orchestrated or agent run completes, the user's only quality signal is the `summary` string and reading the full transcript. With multiple concurrent runs active, there is no fast way to triage "which runs need my attention?" Users waste time reading passing runs to confirm success.
+- **User benefit:** Each completed run displays a 0-100 quality score and a one-sentence rationale. Score drives a green/yellow/red badge in the run list. Users immediately know which runs to inspect and which to close. Over time, score history enables detecting regressions in agent prompts.
+- **Approach:** In `runEngine.ts`, when `msg.type === "result"` and `msg.subtype === "success"`, call a new `scoreRun(runId, summary)` helper *asynchronously* (does not block the result broadcast). The helper retrieves the run record, fetches the last 10 `agent_events` rows for context, then calls `getAnthropic().messages.create()` with a scoring prompt. Response is JSON `{score: <0-100>, reason: "<sentence>"}` via Anthropic structured outputs. Store in two new columns on `agent_runs`; broadcast `run.scored` WS event. Graceful no-op on failure (score null, no disruption to the run lifecycle).
+- **Affected files:** `src/server/db/schema.ts`, `src/server/db/runs.ts`, `src/shared/types.ts`, `src/server/agents/runEngine.ts`, `src/client/components/RunListDetail.tsx`, `src/shared/ws.ts`
+- **Complexity:** Low-Medium (one new async LLM call, two new DB columns, one WS message type, one UI badge)
+- **Risk:** Score call fails → handled silently, run lifecycle unaffected. Score is miscalibrated → advisory-only, never blocking. Latency: ~1–2 s after run completion, async.
+
+---
+
+### Component: Orchestrated Agent Runs *(existing)*
+
+---
+
+#### [OR-004] Structured Output Schema for Orchestrated Runs
+- **Date:** 2026-06-10
+- **Status:** Proposed
+- **Enabling advancement:** Anthropic structured outputs with constrained decoding (`betas: ["output-schema-2025-02-19"]`); three-agent harness structured handoff artifacts (InfoQ April 2026)
+- **Gap addressed:** Orchestrated runs produce an opaque text summary in `agent_runs.summary`. For automation workflows — a run that extracts bug reports, a run that inventories dependencies — there is no machine-readable output, and chaining runs requires re-parsing freeform text.
+- **User benefit:** Power users can declare an optional JSON Schema on a run. When the run completes, Mangler makes a brief structured-output extraction call and stores the validated JSON as `structured_output` on the run. Mangler tools can then reference `structured_output` from prior runs as input to new delegations, enabling composable run pipelines.
+- **Approach:** Add an optional `output_schema TEXT` (JSON Schema string) column to `agent_runs`. In `runEngine.ts`'s result handler, if `output_schema` is set, call `getAnthropic().messages.create()` with `betas: ["output-schema-2025-02-19"]` and store the validated result in a new `structured_output TEXT` column. Expose via `GET /api/runs/:id/output`. Add a schema field to the orchestrated run creation UI.
+- **Affected files:** `src/server/db/schema.ts`, `src/server/db/runs.ts`, `src/shared/types.ts`, `src/server/agents/runEngine.ts`, `src/server/api/runs.ts`, `src/client/components/OrchestratedRunView.tsx`
+- **Complexity:** Medium (schema migration, conditional LLM call, new API endpoint, UI field)
+- **Risk:** Structured outputs beta API may change; validation failures need graceful handling
+
+---
+
+### Component: Search / Navigation *(new component)*
+
+---
+
+#### [FTS-001] Full-Text Run Search via SQLite FTS5
+- **Date:** 2026-06-10
+- **Status:** Proposed
+- **Enabling advancement:** SQLite FTS5 (stable, built-in since SQLite 3.9; zero new dependencies); BM25 ranking; Porter stemmer
+- **Gap addressed:** The Active Agents page lists runs in reverse-chronological order with no search. A staff engineer managing dozens of projects will accumulate hundreds of runs. Finding "the migration-plan run from two weeks ago" currently requires scrolling or knowing the project.
+- **User benefit:** A search bar in the runs list that filters by keyword across run titles and summaries in real time. Queries like "auth refactor" or "test fix" instantly surface matching runs across all projects.
+- **Approach:** Create a `runs_fts` FTS5 virtual table in the schema shadowing `agent_runs(id, title, summary)`. Sync on insert and on `setSummary` in `runsRepo`. Add `GET /api/runs?q=:query` to the runs API endpoint (or extend the existing list endpoint). The query uses `runs_fts MATCH ?` with BM25 ranking via `ORDER BY rank`. In the UI, add a debounced search input above the runs list in `RunListDetail.tsx` that passes `q` as a query parameter.
+- **Affected files:** `src/server/db/schema.ts`, `src/server/db/runs.ts`, `src/server/api/runs.ts`, `src/client/components/RunListDetail.tsx`
+- **Complexity:** Low-Medium (FTS5 DDL + 2 sync calls in the repo + 1 API param + 1 UI input)
+- **Risk:** FTS5 index can drift from the base table if `runs_fts` sync is missed in a repo method; must audit all write paths. Minimal otherwise.
+
+---
+
+### 4. Improvement Selection (Run 2)
+
+#### Selected: [EV-001] — LLM-as-Judge Run Quality Score
+
+**Justification against product objective:**
+
+The product's goal is to help a staff engineer move work forward with confidence. Right now, every completed run looks the same in the UI regardless of whether the agent succeeded brilliantly or silently produced broken output. The user must read transcripts to triage — a task that grows linearly with run volume and defeats the purpose of autonomous delegation.
+
+EV-001 closes this gap with minimal surface area. The infrastructure is fully ready:
+- `runEngine.ts` already has the result message handler at line 82.
+- The LLM call pattern already exists twice in the codebase (`reviewPlan` in `orchestrator.ts`, `reviewToolCall` in `agentRun.ts`).
+- `agent_events` already stores the full execution trajectory needed for judge context.
+- Anthropic structured outputs guarantee the `{score, reason}` JSON shape without fragile parsing.
+
+The complexity delta is: 2 DB columns + 1 helper function + 1 WS message type + 1 UI badge. No new dependencies, no schema-breaking changes, no client-side behavioral changes.
+
+**Ideas excluded this run:**
+- **PA-001 (Parallel Fan-Out)**: Highest impact but highest complexity; needs schema changes, a new tool, UI grouping, and careful approval-flow design. Appropriate after the simpler observability layer is in place.
+- **OR-004 (Structured Output)**: Valuable for automation workflows but niche — most users don't chain runs programmatically yet. Good follow-on once EV-001 is done.
+- **FTS-001 (Run Search)**: High day-to-day value but does not require frontier research to validate — straightforward SQLite FTS5 work. Appropriate for a future run when the idea log is fuller.
+
+---
+
+### 5. Implementation Plan: [EV-001] LLM-as-Judge Run Quality Score
+
+**Objective:** After each successful orchestrated or agent run completes, asynchronously score the output 0–100 using an LLM judge. Store the score and a one-sentence rationale in the run record. Show a color-coded badge in the run detail view.
+
+#### 5.1 How the Judge Works
+
+A brief, stateless LLM call receives: the run's task description (title + prompt summary), the run's completion summary, and a sample of the execution trajectory (last 10 `agent_events` rows). It responds with structured JSON `{score: number, reason: string}`. The judge is instructed to score on three axes — task completion, output correctness, and execution efficiency — weighted toward completion (50 / 30 / 20).
+
+The call uses Anthropic structured outputs (`betas: ["output-schema-2025-02-19"]`) to guarantee the `{score, reason}` shape. Model: `claude-haiku-4-5-20251001` (fast, cheap; the judge doesn't need deep reasoning). The call is fire-and-forget relative to the run lifecycle: the run is already marked `done` before the score arrives.
+
+#### 5.2 Affected Files
+
+| File | Change |
+|------|--------|
+| `src/server/db/schema.ts` | Add `score INTEGER` and `score_reason TEXT` columns to `agent_runs` |
+| `src/server/db/runs.ts` | Add `setScore(id, score, reason)` method; include `score`/`scoreReason` in `toRun()` |
+| `src/shared/types.ts` | Add `score: z.number().nullable()` and `scoreReason: z.string().nullable()` to `AgentRun` |
+| `src/server/agents/runEngine.ts` | In the `"result"` branch of `handleMessage`, call `void scoreRun(runId, summary, title)` |
+| `src/server/agents/runEngine.ts` | New `scoreRun` helper: fetches last 10 events, calls LLM, calls `runsRepo.setScore()`, broadcasts `run.scored` |
+| `src/shared/ws.ts` | Add `run.scored` message type: `{type: "run.scored", runId: string, score: number, scoreReason: string}` |
+| `src/client/components/RunListDetail.tsx` | Show score badge on the run list item and in the detail header |
+
+No new npm packages. No changes to the orchestrator, agentRun, or any other server file.
+
+#### 5.3 Schema Changes
+
+```sql
+-- Additive migration; existing rows get NULL for both columns (score not available for historical runs).
+ALTER TABLE agent_runs ADD COLUMN score INTEGER;
+ALTER TABLE agent_runs ADD COLUMN score_reason TEXT;
+```
+
+Better-sqlite3's synchronous DDL handles `ALTER TABLE ADD COLUMN` safely on existing databases. The migration runs in the `db()` init sequence alongside `SCHEMA`.
+
+#### 5.4 Judge Prompt (Target)
+
+```
+System: You are an agent-run evaluator. Score the following completed agent run on a scale of 0–100.
+
+Criteria:
+- Task completion (50 pts): Did the agent accomplish the stated goal?
+- Output correctness (30 pts): Is the code/output correct and appropriate?  
+- Execution efficiency (20 pts): Did the agent avoid redundant or wasted tool calls?
+
+Respond with valid JSON: {"score": <integer 0-100>, "reason": "<one sentence rationale>"}
+
+User:
+Task: {run.title}
+Summary: {run.summary}
+Trajectory sample (last 10 events):
+{events as compact JSON}
+```
+
+The system message and partial user context (title) are stable and cache-eligible under the existing `cache_control` pattern.
+
+#### 5.5 Score Badge UI
+
+| Score | Color | Label |
+|-------|-------|-------|
+| 80–100 | Green (`good`) | Score number |
+| 50–79 | Yellow (`warn`) | Score number |
+| 0–49 | Red (`bad`) | Score number |
+| null | No badge | — |
+
+Badge renders as `<Mono>` text with `text-good`/`text-warn`/`text-bad` class, matching the existing tone system in `ui.tsx`. Shown in the run list item (after the status) and in the RunListDetail header.
+
+#### 5.6 Dependencies
+
+- `@anthropic-ai/sdk` — already installed; structured outputs beta supported
+- `better-sqlite3` — already installed; `ALTER TABLE ADD COLUMN` is safe and non-destructive
+- No new packages
+- No environment variable changes
+- No client build changes beyond the badge
+
+#### 5.7 Risks and Mitigations
+
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| Judge LLM call fails (API error, timeout) | Low-Medium | `scoreRun` wraps in try/catch; on failure logs the error and exits silently — run lifecycle and DB unaffected |
+| Judge response is not valid JSON | Low | Structured outputs guarantee schema; fallback: catch parse error, skip |
+| Score is systematically miscalibrated | Medium | Score is advisory-only and labeled; no run is blocked or auto-retried on score |
+| Scoring haiku calls accumulate cost on high-volume usage | Low | Haiku pricing: ~$0.0008/run at 1,000 input + 50 output tokens. At 100 runs/day this is $0.08/day. Acceptable. |
+| `ALTER TABLE ADD COLUMN` fails on an old DB with a conflicting column | Very Low | SQLite `ADD COLUMN` is idempotent if the column doesn't exist; add a guard or use `IF NOT EXISTS` equivalent (run in init with error suppression for already-exists) |
+| Databricks provider path: scoring uses `getAnthropic()` while Databricks runs on a different client | Low | Guard: skip scoring when `configRepo.get("mangler_provider") === "databricks"` and Anthropic key is absent |
+
+#### 5.8 Validation Strategy
+
+1. **Unit test** (`src/server/agents/runEngine.ts` or new `runEngine.score.test.ts`): mock `getAnthropic()` and `runsRepo.setScore()`; assert `scoreRun` is called with expected arguments when a success result message arrives; assert it is NOT called for `failed` or `stopped` results.
+2. **Integration test (manual)**: run a short orchestrated task; confirm DB row has `score` (0–100) and `score_reason` (non-empty string) populated after completion.
+3. **Failure resilience test**: set an invalid API key in a test config; confirm the run still completes normally with `score = null`.
+4. **UI test**: verify the badge renders in the correct color for scores 90, 60, and 30.
+5. **Full suite**: `npm test` must pass; `npm run typecheck` must pass; `npm run lint` must pass.
+
+#### 5.9 Success Criteria
+
+- Completed orchestrated and agent runs (non-PTY) show a score badge in RunListDetail
+- `agent_runs.score` and `agent_runs.score_reason` are populated in SQLite after each successful run
+- `run.scored` WS event is broadcast with correct payload
+- Failed and stopped runs do not trigger scoring
+- All existing tests pass
+- `npm run typecheck` and `npm run lint` pass with zero errors
+
+---
+
+*End of Run 2 — 2026-06-10*
