@@ -476,6 +476,52 @@ export const CopyDefInput = z.object({
 });
 export type CopyDefInput = z.infer<typeof CopyDefInput>;
 
+export const GithubSelection = z.object({
+  kind: z.enum(["rule", "skill"]),
+  // Repo-relative path: a markdown file for rules, a directory for skills.
+  path: z.string().min(1),
+  // Definition scopes to sync into: "global" or project ids.
+  targets: z.array(z.string().min(1)).min(1),
+});
+export type GithubSelection = z.infer<typeof GithubSelection>;
+
+export const GithubSource = z.object({
+  id: z.string(),
+  owner: z.string(),
+  repo: z.string(),
+  branch: z.string(),
+  label: z.string(),
+  selections: z.array(GithubSelection),
+  lastSyncedSha: z.string().nullable(),
+  lastSyncedAt: z.number().nullable(),
+  lastError: z.string().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type GithubSource = z.infer<typeof GithubSource>;
+
+export const CreateGithubSourceInput = z.object({
+  url: z.string().min(1),
+  branch: z.string().min(1).optional(),
+  label: z.string().optional(),
+  selections: z.array(GithubSelection).min(1),
+});
+export type CreateGithubSourceInput = z.infer<typeof CreateGithubSourceInput>;
+
+export const UpdateGithubSourceInput = z.object({
+  branch: z.string().min(1).optional(),
+  label: z.string().optional(),
+  selections: z.array(GithubSelection).min(1).optional(),
+});
+export type UpdateGithubSourceInput = z.infer<typeof UpdateGithubSourceInput>;
+
+export const GithubTreeEntry = z.object({
+  name: z.string(),
+  path: z.string(),
+  type: z.enum(["file", "dir"]),
+});
+export type GithubTreeEntry = z.infer<typeof GithubTreeEntry>;
+
 export const DirEntry = z.object({
   name: z.string(),
   path: z.string(),

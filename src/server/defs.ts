@@ -30,6 +30,11 @@ function fileFor(scope: string, kind: DefKind, name: string): string {
   return kind === "skill" ? path.join(dirFor(scope, kind), name, "SKILL.md") : path.join(dirFor(scope, kind), `${name}.md`);
 }
 
+// Directory holding one skill in a scope; GitHub sync writes skill assets here.
+export function skillDir(scope: string, name: string): string {
+  return path.join(dirFor(scope, "skill"), name);
+}
+
 export function parseFrontmatter(content: string): Record<string, string> {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return {};

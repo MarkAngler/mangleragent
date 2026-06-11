@@ -15,6 +15,7 @@ import { McpServersPage } from "./pages/McpServersPage";
 import { NotesPage } from "./pages/NotesPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 import { DefinitionsPage } from "./pages/DefinitionsPage";
+import { GithubSyncPage } from "./pages/GithubSyncPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 export function App() {
@@ -36,6 +37,7 @@ export function App() {
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/definitions" element={<DefinitionsPage />} />
+              <Route path="/definitions/github" element={<GithubSyncPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
           </AppShell>

@@ -170,4 +170,20 @@ CREATE TABLE IF NOT EXISTS schedules (
   updated_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_schedules_due ON schedules(enabled, next_run_at);
+
+CREATE TABLE IF NOT EXISTS github_sources (
+  id              TEXT PRIMARY KEY,
+  owner           TEXT NOT NULL,
+  repo            TEXT NOT NULL,
+  branch          TEXT NOT NULL,
+  label           TEXT NOT NULL DEFAULT '',
+  -- JSON array of { kind: 'rule'|'skill', path, targets: scope[] }. No child table:
+  -- selections are never queried independently and always load with their source.
+  selections_json TEXT NOT NULL DEFAULT '[]',
+  last_synced_sha TEXT,
+  last_synced_at  INTEGER,
+  last_error      TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
 `;

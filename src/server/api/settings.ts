@@ -21,6 +21,7 @@ settingsRouter.get("/settings", (_req, res) => {
     defaultSystemPrompt: DEFAULT_MANGLER_SYSTEM,
     cliAutorun: configRepo.getBool("mangler_cli_autorun", false),
     cliWorkdir: configRepo.get("mangler_cli_workdir") ?? "",
+    githubTokenConfigured: Boolean(configRepo.get("github_token")),
     dataDir: env.dataDir,
   });
 });
@@ -49,6 +50,7 @@ const PatchInput = z.object({
   systemPrompt: z.string().max(20000).optional(),
   cliAutorun: z.boolean().optional(),
   cliWorkdir: z.string().optional(),
+  githubToken: z.string().optional(),
 });
 
 settingsRouter.patch("/settings", (req, res) => {
@@ -64,5 +66,6 @@ settingsRouter.patch("/settings", (req, res) => {
   if (parsed.data.systemPrompt !== undefined) configRepo.set("mangler_system_prompt", parsed.data.systemPrompt);
   if (parsed.data.cliAutorun !== undefined) configRepo.set("mangler_cli_autorun", String(parsed.data.cliAutorun));
   if (parsed.data.cliWorkdir !== undefined) configRepo.set("mangler_cli_workdir", parsed.data.cliWorkdir);
+  if (parsed.data.githubToken !== undefined) configRepo.set("github_token", parsed.data.githubToken);
   res.json({ ok: true });
 });

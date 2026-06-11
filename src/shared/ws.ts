@@ -15,6 +15,8 @@ export const ServerMsg = z.discriminatedUnion("type", [
   z.object({ type: z.literal("schedule.updated"), scheduleId: z.string() }),
   z.object({ type: z.literal("notes.updated") }),
   z.object({ type: z.literal("tasks.updated") }),
+  z.object({ type: z.literal("defs.updated") }),
+  z.object({ type: z.literal("github.sources.updated") }),
 
   // Mangler streaming chat
   z.object({ type: z.literal("mangler.delta"), conversationId: z.string(), text: z.string() }),

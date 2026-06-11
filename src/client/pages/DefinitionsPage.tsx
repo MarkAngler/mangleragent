@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { del, get, post, put } from "../lib/api";
 import type { DefEntry, DefFile, DefKind, Project } from "../../shared/types";
 import { Button, EmptyState, Modal, Mono, PageHeader, Textarea } from "../components/ui";
 import { usePageTitle } from "../components/PageTitleProvider";
+import { useWsMessage } from "../lib/ws";
 
 type CopyResult = { target: string; status: "copied" | "exists" | "error"; error?: string };
 
@@ -24,6 +26,10 @@ export function DefinitionsPage() {
 
   // Mangler can't spawn sub-agents, so its scope offers only skills and rules.
   const visibleKinds = scope === "mangler" ? KINDS.filter((k) => k.id !== "agent") : KINDS;
+
+  useWsMessage((msg) => {
+    if (msg.type === "defs.updated") void qc.invalidateQueries({ queryKey: ["defs"] });
+  });
 
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => get<Project[]>("/projects") });
   const listKey = ["defs", scope, kind];
@@ -89,24 +95,29 @@ export function DefinitionsPage() {
         title="Definitions"
         description="Custom agents, skills, and rules — identical syntax to Claude Code markdown. Delegated agents load these from the project's .claude folder; the Mangler scope customizes the chat agent itself."
         actions={
-          <select
-            value={scope}
-            onChange={(e) => {
-              const next = e.target.value;
-              setScope(next);
-              setSelected(null);
-              if (next === "mangler" && kind === "agent") setKind("rule");
-            }}
-            className="rounded-md border border-hairline-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent"
-          >
-            <option value="global">Global</option>
-            <option value="mangler">Mangler</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <>
+            <Link to="/definitions/github">
+              <Button>GitHub sync</Button>
+            </Link>
+            <select
+              value={scope}
+              onChange={(e) => {
+                const next = e.target.value;
+                setScope(next);
+                setSelected(null);
+                if (next === "mangler" && kind === "agent") setKind("rule");
+              }}
+              className="rounded-md border border-hairline-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent"
+            >
+              <option value="global">Global</option>
+              <option value="mangler">Mangler</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </>
         }
       />
 
