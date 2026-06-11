@@ -42,7 +42,7 @@ export function RunPickerModal({
               <StatusDot tone={STATUS_TONE[run.status]} pulse={isActiveRun(run)} />
             </div>
             <div className="mt-1 flex items-center gap-2">
-              <Mono>{run.kind === "pty" ? (run.cli === "codex" ? "codex" : "terminal") : "agent"}</Mono>
+              <Mono>{run.kind === "pty" ? (run.cli === "codex" ? "codex" : "claude code") : "agent"}</Mono>
               <Mono>· {run.status}</Mono>
               <Mono>· {new Date(run.createdAt).toLocaleString()}</Mono>
             </div>

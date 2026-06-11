@@ -14,9 +14,9 @@ It starts a local server (bound to `127.0.0.1`), serves the web app, and opens y
 
 - **Mangler** — a chat agent (Claude API) that tracks your tasks and notes and can act on your workspace through tools: create/move kanban tickets, capture notes, and delegate work to coding agents.
 - **Projects & kanban** — add a local folder as a project; each gets its own board with drag-and-drop tickets.
-- **Interactive terminals** — launch a real `claude` session in a project (or from a ticket) and drive it in an in-browser terminal.
+- **Interactive Claude Code sessions** — launch a real `claude` session in a project (or from a ticket) and drive it in an in-browser terminal.
 - **Orchestrated agents** — delegate a ticket to a Claude Code agent. It **plans first**, the plan is **approved** (by Mangler or by you), then it executes **autonomously** in the project folder. Watch every run live.
-- **Active Agents** — one place to see and interact with every terminal session and orchestrated run, approve plans, and stop agents.
+- **Active Agents** — one place to see and interact with every Claude Code session and orchestrated run, approve plans, and stop agents.
 - **Custom agents, skills & rules** — author Claude-Code-compatible markdown (`.claude/agents`, `.claude/skills`, `.claude/rules`) per project or globally; delegated agents pick them up automatically.
 - **Optional honcho.dev memory** — when enabled, Mangler remembers you across conversations.
 
@@ -24,7 +24,7 @@ It starts a local server (bound to `127.0.0.1`), serves the web app, and opens y
 
 - **Node.js ≥ 20**
 - A **Claude API key** (`CLAUDE_API_KEY` or `ANTHROPIC_API_KEY`).
-- The **`claude` CLI** on your `PATH` for *interactive terminal* sessions. Orchestrated agents use the bundled Claude Agent SDK and don't require a separate install.
+- The **`claude` CLI** on your `PATH` for *interactive Claude Code* sessions. Orchestrated agents use the bundled Claude Agent SDK and don't require a separate install.
 
 ## Configuration
 
@@ -36,7 +36,7 @@ Set these via the environment or a `.env` file in the directory you run from (se
 | `HONCHO_DEV_API_KEY` | no | Enables the optional honcho.dev memory integration |
 | `PORT` | no | Server port (default `4173`) |
 | `MANGLED_DATA_DIR` | no | Where data lives (default `~/.mangled-agents`) |
-| `MANGLED_CLAUDE_BIN` | no | Path to the `claude` binary for terminals (default `claude`) |
+| `MANGLED_CLAUDE_BIN` | no | Path to the `claude` binary for Claude Code sessions (default `claude`) |
 | `MANGLED_HONCHO_WORKSPACE` | no | Honcho workspace id (default `mangled-agents`) |
 
 Flags: `--port <n>`, `--no-open`.
@@ -72,7 +72,7 @@ Then open `http://localhost:5173` on `other-machine`. The connection is outbound
 
 Single npm package, TypeScript throughout.
 
-- **Server** — Express + `ws`, SQLite (`better-sqlite3`). Mangler runs on the Anthropic Messages API with a streaming tool-use loop; orchestrated agents run on `@anthropic-ai/claude-agent-sdk` (plan mode → `canUseTool` approval gate → `acceptEdits`). Interactive terminals use `@lydell/node-pty` streamed over `/ws/term`.
+- **Server** — Express + `ws`, SQLite (`better-sqlite3`). Mangler runs on the Anthropic Messages API with a streaming tool-use loop; orchestrated agents run on `@anthropic-ai/claude-agent-sdk` (plan mode → `canUseTool` approval gate → `acceptEdits`). Interactive Claude Code sessions use `@lydell/node-pty` streamed over `/ws/term`.
 - **Client** — React + Vite, TanStack Query, a small "clean light lab" design system, and xterm.js terminals. Realtime updates flow over a multiplexed `/ws` socket.
 
 The server is bundled with `tsup` (native modules kept external) and the client with Vite; both ship pre-built in the published package.

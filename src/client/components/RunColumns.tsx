@@ -51,7 +51,7 @@ export function RunColumns({ runs, projects, maxVisible }: { runs: AgentRun[]; p
                   <StatusDot tone={STATUS_TONE[run.status]} pulse={isActiveRun(run)} />
                   <span className="shrink-0 text-sm font-medium text-ink">{projectName(column.projectId)}</span>
                   <span className="truncate text-[12px] text-muted">{run.title}</span>
-                  <Mono className="shrink-0">· {run.kind === "pty" ? (run.cli === "codex" ? "codex" : "terminal") : "agent"}</Mono>
+                  <Mono className="shrink-0">· {run.kind === "pty" ? (run.cli === "codex" ? "codex" : "claude code") : "agent"}</Mono>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {isActiveRun(run) && <Button onClick={() => stop.mutate(run.id)}>Stop</Button>}

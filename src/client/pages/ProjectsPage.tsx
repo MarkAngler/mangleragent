@@ -91,7 +91,7 @@ export function ProjectsPage() {
                 </Link>
                 <div className="flex shrink-0 items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
                   <button onClick={() => openTerminal.mutate({ id: project.id, cli: "claude" })} disabled={openTerminal.isPending}>
-                    <Mono className="hover:text-accent">terminal</Mono>
+                    <Mono className="hover:text-accent">claude code</Mono>
                   </button>
                   <button onClick={() => openTerminal.mutate({ id: project.id, cli: "codex" })} disabled={openTerminal.isPending}>
                     <Mono className="hover:text-accent">codex</Mono>

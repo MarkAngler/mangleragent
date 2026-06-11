@@ -26,8 +26,8 @@ npm run lint       # eslint .  (no Prettier; ESLint only)
 
 ## Environment & setup
 
-- Requires a Claude API key: `CLAUDE_API_KEY` or `ANTHROPIC_API_KEY`. The `claude` CLI must be on `PATH` only for *interactive terminal* sessions; orchestrated agents use the bundled Agent SDK. See `.env.example` for all vars (`PORT`, `MANGLED_DATA_DIR`, `MANGLED_CLAUDE_BIN`, `MANGLED_HONCHO_WORKSPACE`, `HONCHO_DEV_API_KEY`).
-- Optional: `DATABRICKS_HOST` + `DATABRICKS_TOKEN` (aliases: `DATABRICKS_WORKSPACE` / `DATABRICKS_PAT`) let Mangler run through the Databricks AI Gateway (OpenAI-compatible) instead of the direct Anthropic API; switch providers in Settings. Mangler chat only — orchestrated agents and the PTY terminal still use Anthropic / the `claude` CLI.
+- Requires a Claude API key: `CLAUDE_API_KEY` or `ANTHROPIC_API_KEY`. The `claude` CLI must be on `PATH` only for *interactive Claude Code* sessions; orchestrated agents use the bundled Agent SDK. See `.env.example` for all vars (`PORT`, `MANGLED_DATA_DIR`, `MANGLED_CLAUDE_BIN`, `MANGLED_HONCHO_WORKSPACE`, `HONCHO_DEV_API_KEY`).
+- Optional: `DATABRICKS_HOST` + `DATABRICKS_TOKEN` (aliases: `DATABRICKS_WORKSPACE` / `DATABRICKS_PAT`) let Mangler run through the Databricks AI Gateway (OpenAI-compatible) instead of the direct Anthropic API; switch providers in Settings. Mangler chat only — orchestrated agents and interactive Claude Code sessions still use Anthropic / the `claude` CLI.
 - `engines` requires Node ≥20. **Local caveat:** use nvm Node 24 — `better-sqlite3` is a native module, and a Node ABI mismatch causes runtime crashes. Rebuild dependencies after switching Node versions.
 - Data and the SQLite DB live under `~/.mangled-agents` (override with `MANGLED_DATA_DIR`). The whole data directory can also be relocated at runtime from Settings → data directory, which records a `data-location` pointer in the anchor so the move survives a restart.
 
@@ -43,7 +43,7 @@ Single npm package, three source roots:
 
 1. **Mangler chat** — `src/server/agents/mangler.ts` + `manglerTools.ts`. An Anthropic Messages API streaming tool-use loop. Tools mutate projects/tickets/notes/tasks and can `delegate_ticket` to spawn an orchestrated run. Output streams to clients over WS (`mangler.delta` / `mangler.tool` / `mangler.done`).
 2. **Orchestrated agent** — `src/server/agents/orchestrator.ts`. Runs `@anthropic-ai/claude-agent-sdk` `query()` with `cwd` set to the project path. Flow: **plan mode → `canUseTool` approval gate → `acceptEdits`**. Approval is either `approver: "human"` (client calls `/api/permissions/:id/decide`) or `"agent"` (an LLM reviews the plan). The SDK auto-loads `.claude/agents|skills|rules` from the project CWD.
-3. **PTY terminal** — `src/server/agents/pty.ts`. Spawns the `claude` CLI through `@lydell/node-pty`, byte-streamed over `/ws/term`.
+3. **Claude Code (PTY)** — `src/server/agents/pty.ts`. Spawns the `claude` CLI through `@lydell/node-pty`, byte-streamed over `/ws/term`.
 
 ### Cross-cutting
 

@@ -54,7 +54,7 @@ export function RunListDetail({ runs, projects }: { runs: AgentRun[]; projects: 
             </div>
             <div className="mt-0.5 truncate text-[12px] text-muted">{run.title}</div>
             <div className="mt-1 flex items-center gap-2">
-              <Mono>{run.kind === "pty" ? (run.cli === "codex" ? "codex" : "terminal") : "agent"}</Mono>
+              <Mono>{run.kind === "pty" ? (run.cli === "codex" ? "codex" : "claude code") : "agent"}</Mono>
               <Mono>· {run.status}</Mono>
             </div>
           </button>

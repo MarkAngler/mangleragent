@@ -41,7 +41,7 @@ runsRouter.post("/runs/pty", (req, res) => {
   }
   const ticket = parsed.data.ticketId ? ticketsRepo.get(parsed.data.ticketId) : undefined;
   const cli = parsed.data.cli ?? "claude";
-  const title = ticket ? ticket.title : cli === "codex" ? "Codex" : "Terminal";
+  const title = ticket ? ticket.title : cli === "codex" ? "Codex" : "Claude Code";
 
   const run = runsRepo.create({
     projectId: project.id,

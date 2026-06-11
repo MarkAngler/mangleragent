@@ -29,7 +29,7 @@ export function ActiveAgentsPage() {
       <PageHeader
         eyebrow="Orchestration"
         title="Active Agents"
-        description="Every interactive terminal session and orchestrated agent run, live."
+        description="Every interactive Claude Code session and orchestrated agent run, live."
         compact
         actions={
           <div className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export function ActiveAgentsPage() {
       />
 
       {runs.length === 0 ? (
-        <EmptyState title="No agents yet" hint="Open a terminal from a project board, or delegate a ticket to Mangler." />
+        <EmptyState title="No agents yet" hint="Open Claude Code from a project board, or delegate a ticket to Mangler." />
       ) : view === "columns" ? (
         <RunColumns runs={runs} projects={projects} maxVisible={maxVisible} />
       ) : (

@@ -117,7 +117,7 @@ export function BoardPage() {
               <BranchSwitcher projectId={projectId} />
               <Button onClick={() => setCommitOpen(true)}>Commit…</Button>
               <Button onClick={() => openVscode.mutate()} disabled={openVscode.isPending}>Open in VS Code</Button>
-              <Button onClick={() => openTerminal.mutate({ cli: "claude" })}>Open terminal</Button>
+              <Button onClick={() => openTerminal.mutate({ cli: "claude" })}>Open Claude Code</Button>
               <Button onClick={() => openTerminal.mutate({ cli: "codex" })}>Open Codex</Button>
             </div>
           }
@@ -493,7 +493,7 @@ function TicketEditor({
       <div className="border-t border-hairline pt-4">
         <Mono>agents</Mono>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button onClick={() => onOpenTerminal("claude")}>Open terminal</Button>
+          <Button onClick={() => onOpenTerminal("claude")}>Open Claude Code</Button>
           <Button onClick={() => onOpenTerminal("codex")}>Open Codex</Button>
           <select
             value={approver}
