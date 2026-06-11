@@ -18,6 +18,7 @@ interface Settings {
   defaultSystemPrompt: string;
   cliAutorun: boolean;
   cliWorkdir: string;
+  githubTokenConfigured: boolean;
   dataDir: string;
 }
 
@@ -27,7 +28,7 @@ export function SettingsPage() {
   const { data } = useQuery({ queryKey: ["settings"], queryFn: () => get<Settings>("/settings") });
 
   const update = useMutation({
-    mutationFn: (patchBody: Partial<Pick<Settings, "provider" | "honchoEnabled" | "honchoWorkspace" | "model" | "systemPrompt" | "cliAutorun" | "cliWorkdir">>) => patch("/settings", patchBody),
+    mutationFn: (patchBody: Partial<Pick<Settings, "provider" | "honchoEnabled" | "honchoWorkspace" | "model" | "systemPrompt" | "cliAutorun" | "cliWorkdir">> & { githubToken?: string }) => patch("/settings", patchBody),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["settings"] }),
   });
 
@@ -42,6 +43,8 @@ export function SettingsPage() {
 
   const [cliWorkdir, setCliWorkdir] = useState<string | null>(null);
   const cliWorkdirValue = cliWorkdir ?? data?.cliWorkdir ?? "";
+
+  const [githubToken, setGithubToken] = useState("");
 
   const toast = useToast();
   const [target, setTarget] = useState<string | null>(null);
@@ -65,6 +68,7 @@ export function SettingsPage() {
             <Row label="Claude API key" ok={data?.anthropicConfigured} hint="from CLAUDE_API_KEY / ANTHROPIC_API_KEY" />
             <Row label="Databricks token" ok={data?.databricksConfigured} hint="from DATABRICKS_HOST / DATABRICKS_TOKEN" />
             <Row label="Honcho API key" ok={data?.honchoConfigured} hint="from HONCHO_DEV_API_KEY" />
+            <Row label="GitHub token" ok={data?.githubTokenConfigured} hint="from the github token card below" />
           </div>
         </Card>
 
@@ -206,6 +210,35 @@ export function SettingsPage() {
             </div>
             <p className="mt-2 text-[12px] text-muted">Where commands run when Mangler doesn't pass a project. Leave blank to require a project per command.</p>
           </div>
+        </Card>
+
+        <Card className="p-5">
+          <Mono>github token</Mono>
+          <div className="mt-3 flex gap-2">
+            <Input
+              type="password"
+              value={githubToken}
+              onChange={(e) => setGithubToken(e.target.value)}
+              placeholder={data?.githubTokenConfigured ? "configured — enter a new token to replace" : "ghp_… (optional, for private repos)"}
+              className="font-mono text-[13px]"
+            />
+            <Button
+              variant="solid"
+              disabled={!githubToken || update.isPending}
+              onClick={() => {
+                update.mutate({ githubToken });
+                setGithubToken("");
+              }}
+            >
+              Save
+            </Button>
+            <Button disabled={!data?.githubTokenConfigured || update.isPending} onClick={() => update.mutate({ githubToken: "" })}>
+              Clear
+            </Button>
+          </div>
+          <p className="mt-2 text-[12px] text-muted">
+            Personal access token used by GitHub sync (Definitions → GitHub sync) for private repositories and higher rate limits.
+          </p>
         </Card>
 
         <Card className="p-5">
