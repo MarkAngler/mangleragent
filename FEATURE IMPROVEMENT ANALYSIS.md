@@ -11,6 +11,7 @@
 | Run | Date | Ideas Added | Idea Selected |
 |-----|------|-------------|---------------|
 | 1 | 2026-06-07 | MA-001, MA-002, MA-003, OR-001, OR-002, OR-003, RT-001, SC-001, SC-002, SC-003, ME-001, ME-002, DF-001 | MA-002 |
+| 2 | 2026-06-12 | FA-001, KA-001, OR-005, GH-001 | OR-001 |
 
 ---
 
@@ -24,15 +25,17 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 
 | # | Component | Primary Files | Maturity | Key Gaps |
 |---|-----------|--------------|----------|----------|
-| 1 | **Mangler Chat Agent** | `src/server/agents/mangler.ts`, `manglerTools.ts` | High | 12-turn hard cap with no summarization; no prompt caching; full message history sent each turn |
-| 2 | **Orchestrated Agent Runs** | `src/server/agents/orchestrator.ts` | High | Plan approval unlocks all tools globally; no token/cost metrics stored; no run resume after failure |
+| 1 | **Mangler Chat Agent** | `src/server/agents/mangler.ts`, `manglerTools.ts` | High | 12-turn hard cap with no summarization; prompt caching applied (MA-002 done) but single merged block; full history accumulates |
+| 2 | **Orchestrated Agent Runs** | `src/server/agents/orchestrator.ts`, `agentRun.ts` | High | Plan approval unlocks all tools globally; no token/cost metrics stored (0 visibility on spend); no run resume after failure |
 | 3 | **PTY Terminal** | `src/server/agents/pty.ts`, `pty.serialize.ts` | Medium | No automatic reconnection; sessions marked stopped on server restart |
-| 4 | **Kanban Board** | `src/server/db/tickets.ts`, `src/shared/board.ts` | Medium | No ticket→run linking; no blocking relationships or story-point estimates |
+| 4 | **Kanban Board** | `src/server/db/tickets.ts`, `src/shared/board.ts` | Medium | Ticket status does not auto-update when an agent run completes on that ticket; no ticket→run link visible in UI |
 | 5 | **Real-time Hub** | `src/server/realtime/hub.ts` | Low-Medium | No sequence numbers; no event buffering; client disconnect = all live events lost |
 | 6 | **Definitions System** | `src/server/defs.ts`, `src/server/api/defs.ts` | Medium | No versioning; no diff history; no validation of definition schema |
-| 7 | **Scheduling** | `src/server/scheduler.ts`, `src/server/cron.ts` | Low | 30 s polling; no retry on failure; no error column; missed runs silently skipped |
+| 7 | **Scheduling** | `src/server/scheduler.ts`, `src/server/cron.ts` | Low | 30 s polling; no retry on failure; no error column; missed runs silently skipped; no automatic GitHub source sync |
 | 8 | **External Agent Chat** | `src/server/agents/externalAgentChat.ts`, `genie.ts` | Early | No streaming parity with Mangler; no tool-call transparency |
 | 9 | **Memory (Honcho)** | `src/server/honcho.ts` | Low | Off by default; requires external SaaS; no local fallback; conversation history grows unbounded |
+| 10 | **Agent Builder / Parallel Execution** | `src/server/agents/agentRun.ts`, `orchestrator.ts` | Medium | SDK v0.3.158 supports parallel sub-agents natively; Mangler can only delegate one ticket at a time |
+| 11 | **GitHub Sync** | `src/server/github/sync.ts` | Low-Medium | Sync is entirely manual (no periodic trigger); a stale definition from a changed repo silently diverges |
 
 ---
 
@@ -112,6 +115,33 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
   - Source: [Uptrace — LLM cost monitoring](https://uptrace.dev/blog/llm-cost-monitoring)
 - MLflow now includes LLM observability tooling as a first-class feature.
   - Source: [MLflow — Top LLM observability tools 2026](https://mlflow.org/articles/top-llm-observability-tools-in-2026-a-pro-guide/)
+- OTel GenAI v1.37+ (late 2025): shift from single-call LLM monitoring to agent-first observability. Key standardized attributes: `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.request.model`, `gen_ai.provider.name`, `gen_ai.operation.name` (tool_call / agent_run). Auto-instrumentation libraries exist for the Anthropic SDK. Under 1 ms per-call overhead. Cost calculation from token × model rate is the standard pattern.
+  - Sources: [Datadog LLM Observability OTel support](https://www.datadoghq.com/blog/llm-otel-semantic-convention/) (2026); [OpenTelemetry AI Agent Observability blog](https://opentelemetry.io/blog/2025/ai-agent-observability/) (2025)
+- Real-world impact: Multi-turn session tracing (not per-call) is the production unit; a "$47K runaway agent" incident (Nov 2025) accelerated adoption of per-run budget enforcement across the industry.
+  - Source: [BuildMVPFast — Cost Tracking Multi-Model AI](https://www.buildmvpfast.com/blog/cost-tracking-multi-model-ai-token-usage-attribution-2026) (2026)
+
+### 2.7 Parallel Sub-Agent Execution
+
+**Key advances (2025–2026):**
+
+- **Claude Agent SDK v0.3.158** (installed in this repo as of Run 2) natively supports parallel sub-agents via the `agents` parameter in `query()` options. The `Agent` tool (renamed from `Task` in v2.1.63) allows an orchestrator to spawn up to 10 concurrent sub-agents with context isolation. Fan-out/fan-in is a documented first-class pattern: split work to N sub-agents simultaneously, merge results in the time of the slowest one.
+  - Sources: [Claude Agent SDK — Subagents docs](https://code.claude.com/docs/en/agent-sdk/subagents) (Anthropic official, 2026); [Anthropic Engineering — Building agents with the SDK](https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk) (Sept 2025)
+- **Critical limitation:** Nested subagents are unsupported (do not pass `Agent` in a sub-agent's `tools` array). Each sub-agent runs in a fresh isolated context; intermediate tool calls stay isolated; only the final message returns to the parent.
+- **Model selection per sub-agent:** Each sub-agent can override the parent model (`model: "haiku"` for reviewers, `model: "sonnet"` for implementers), enabling cost-tiered delegation.
+  - Source: [Claude Agent SDK — Subagents docs](https://code.claude.com/docs/en/agent-sdk/subagents) (2026)
+- **Message Batches API** (Anthropic, 2025): up to 100,000 requests per batch, 50% cost reduction on standard pricing, async processing (most batches complete < 1 hour). Complementary to the SDK for non-interactive bulk tasks.
+  - Source: [Anthropic — Batch processing docs](https://platform.claude.com/docs/en/build-with-claude/batch-processing) (2025)
+
+**Conflicts / caveats:** The `agents` SDK parameter is Anthropic-hosted; Databricks path cannot use it.
+
+### 2.8 MCP Transport and Resumability
+
+**Key advances (2025–2026):**
+
+- **MCP Streamable HTTP transport** (protocol version 2025-11-25) consolidates bidirectional communication over a single HTTP POST endpoint with persistent response streams, superseding the deprecated SSE transport. An **EventStore** configuration enables resumability: clients reconnect with `Last-Event-ID`, and the server replays missed events. Critical for long-running tool calls to survive network hiatuses without requiring the LLM to restart.
+  - Sources: [MCP Transports Specification 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports); [The New Stack — MCP Streamable HTTP](https://thenewstack.io/how-mcp-uses-streamable-http-for-real-time-ai-tool-interaction/)
+- **SQLite as append-only event store:** The `sql-event-store` pattern (append_key dedup + previous_id backward-link chain) is a validated production approach for edge deployments — directly applicable to the `agent_events` table already in this repo.
+  - Source: [GitHub — sql-event-store](https://github.com/mattbishop/sql-event-store); [SoftwareMill — Message delivery and deduplication strategies](https://softwaremill.com/message-delivery-and-deduplication-strategies/)
 
 ---
 
@@ -169,7 +199,7 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 
 #### [OR-001] Per-Run Token and Cost Tracking
 - **Date:** 2026-06-07
-- **Status:** Proposed
+- **Status:** Planned (Run 2 — 2026-06-12)
 - **Enabling advancement:** OpenTelemetry GenAI semantic conventions; Anthropic SDK `usage` field on every message response
 - **Gap addressed:** `agent_events` stores text events but no token counts, latency, or cost. Users have no visibility into what a run costs.
 - **User benefit:** Run detail view shows "12,400 input tokens · 3,200 output tokens · ~$0.037" per run. Enables cost attribution per project/ticket.
@@ -202,6 +232,69 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 - **Affected files:** `src/server/agents/orchestrator.ts`, `src/server/db/permissions.ts`, `src/client/components/OrchestratedRunView.tsx`
 - **Complexity:** Medium (gating logic is already in place; needs UI for per-tool decisions and a run setting to opt in)
 - **Risk:** Frequent approval prompts for long runs could be disruptive; needs a "trust this tool for this run" option to prevent alert fatigue
+
+---
+
+#### [OR-005] Post-Run Git Diff View
+- **Date:** 2026-06-12
+- **Status:** Proposed
+- **Enabling advancement:** `src/server/git.ts` already exposes shell git commands; `DiffViewer` component already exists in the client
+- **Gap addressed:** After an orchestrated run completes, users have no integrated view of what files the agent changed. They must open a terminal and run `git diff`. This breaks the "review the agent's work" step in the core value loop.
+- **User benefit:** The run detail view shows a git diff of all changes made since the run started. Users can review file changes inline, understand exactly what the agent did, and commit or discard from the same interface.
+- **Approach:** When a run transitions to `done`, capture the git diff from `run.cwd` via `git diff HEAD` (or compare against the commit sha recorded at run start, stored in a new `base_sha` column). Expose via `GET /api/runs/:id/diff`. Render using the existing `DiffViewer` component in `OrchestratedRunView.tsx`.
+- **Affected files:** `src/server/git.ts`, `src/server/api/runs.ts`, `src/server/db/schema.ts` (optional `base_sha` column), `src/client/components/OrchestratedRunView.tsx`
+- **Complexity:** Low-Medium (git diff is one shell command; `DiffViewer` already built; need a run-start sha capture)
+- **Risk:** `git diff HEAD` shows unstaged changes; if the agent staged but didn't commit, a different diff command is needed. Must handle repos with no git history (new project path).
+
+---
+
+#### [FA-001] Parallel Fan-out Ticket Delegation
+- **Date:** 2026-06-12
+- **Status:** Proposed
+- **Enabling advancement:** Claude Agent SDK v0.3.158 `agents` parameter enables up to 10 parallel sub-agent contexts; fan-out/fan-in documented as a first-class pattern (Anthropic Engineering, Sept 2025)
+- **Gap addressed:** Mangler's `delegate_ticket` tool delegates one ticket per call, serialized. A sprint with five tickets requires five separate user instructions and five sequential delegations. Users cannot saturate available parallelism.
+- **User benefit:** A single `delegate_sprint` call fans out up to N orchestrated runs simultaneously. A five-ticket sprint that takes 30 minutes serially completes in ~8 minutes (limited by the slowest run, not all five). Users ask "delegate the sprint" and all tickets are in flight.
+- **Approach:** Add a `delegate_sprint` tool to `manglerTools.ts` that accepts a list of ticket IDs (max 8). Spawn parallel `startOrchestratedRun` calls (already async) via `Promise.all`. Each run is independent and follows the existing approval/plan flow. Return a list of `{ticketId, runId, status}` objects.
+- **Affected files:** `src/server/agents/manglerTools.ts` (new `delegate_sprint` tool), `src/server/agents/mangler.ts` (add tool to anthropicTools)
+- **Complexity:** Low-Medium (no new infrastructure; just parallelizing existing `startOrchestratedRun` calls; human-approval mode requires the UI to handle N simultaneous plan approval cards)
+- **Risk:** N simultaneous orchestrated runs with `approver: "human"` would flood the user with plan approval prompts; should default `approver: "agent"` for batch delegation. Resource contention on the local machine (CPU/disk) from concurrent Claude Code agents.
+
+---
+
+### Component: Kanban Board
+
+---
+
+#### [KA-001] Ticket-to-Run Lifecycle Sync
+- **Date:** 2026-06-12
+- **Status:** Proposed
+- **Enabling advancement:** `agent_runs.ticket_id` already links runs to tickets; run status transitions already emit `run.updated` events; `ticketsRepo.move()` already handles column moves
+- **Gap addressed:** When a user asks Mangler to "work on this ticket," the kanban card stays in its current column regardless of run state. Users must manually move tickets through "In Progress" → "Review" → "Done." This breaks the core product loop: the board should reflect what the agents are actually doing.
+- **User benefit:** The kanban board becomes a live dashboard of agent activity. Delegating a ticket auto-moves it to "In Progress"; a successful run moves it to "Review" (for human check); manual override still works since all moves are regular ticket moves.
+- **Approach:**
+  1. In `orchestrator.ts`, when the run transitions to `running` (after plan approval), find the associated ticket via `run.ticketId` and move it to the project's "in_progress" column (fall back to column index 2 if the column id doesn't exist).
+  2. In `runEngine.ts`'s `handleMessage`, when `msg.type === "result"` and subtype is "success", move the ticket to the "review" column (fall back to column index 3). On failure, leave the ticket column unchanged but add a `failed` label.
+  3. Broadcast `board.updated` after each move so the live board reflects the change immediately.
+- **Affected files:** `src/server/agents/orchestrator.ts`, `src/server/agents/runEngine.ts`, `src/server/db/tickets.ts` (read-only, already imported), `src/server/db/projects.ts` (to resolve column ids)
+- **Complexity:** Low (additive code in existing status-transition points; no new APIs or schema changes; broadcast already wired)
+- **Risk:** If a user has manually moved a ticket ahead of the agent (e.g., already in "Review"), the lifecycle sync would move it back to "In Progress" on run start — a regression. Mitigation: only move if the ticket is currently in the "backlog" or "todo" column (don't move forward columns that are already further ahead).
+
+---
+
+### Component: GitHub Sync
+
+---
+
+#### [GH-001] GitHub Source Periodic Auto-Sync
+- **Date:** 2026-06-12
+- **Status:** Proposed
+- **Enabling advancement:** `syncAll()` already exists in `src/server/github/sync.ts`; the scheduler's `tick()` pattern is established; cron infrastructure already present
+- **Gap addressed:** GitHub source sync is purely manual (triggered only via the GitHub Sync page). A rule or skill updated in the source repo drifts silently until the user remembers to resync. In practice, users add a GitHub source and never sync it again.
+- **User benefit:** Users configure an auto-sync interval per source (or a global `syncAll` schedule). Definitions stay current automatically without the user needing to think about it. Stale-source drift is eliminated.
+- **Approach:** Add an optional `sync_interval_cron TEXT` column to `github_sources`. In `startScheduler()` (or a new `startGithubSyncScheduler()`), check for sources with a non-null `sync_interval_cron` and call `syncAll({ force: false })` when due. Alternatively, add a hardcoded background sync (e.g., every 6 hours) in `src/server/index.ts` using `setInterval`. The simpler path: a single `setInterval(syncAll, 6 * 60 * 60 * 1000)` in the server startup, configurable via a Settings toggle.
+- **Affected files:** `src/server/index.ts` (add interval), `src/server/api/settings.ts` (toggle), `src/client/pages/SettingsPage.tsx` (UI)
+- **Complexity:** Low (one `setInterval` call + a settings toggle; `syncAll` is already written and tested)
+- **Risk:** GitHub rate-limits unauthenticated callers at 60 req/hour; `sync.ts` already notes this. A 6-hour background interval over a handful of sources is well within limits. If the user has many sources, the existing sequential sync strategy may be slow.
 
 ---
 
@@ -421,3 +514,219 @@ Pass `system` to `messages.create()`. The Anthropic SDK accepts `TextBlockParam[
 ---
 
 *End of Run 1 — 2026-06-07*
+
+---
+
+## Run 2 (2026-06-12)
+
+### Selected: [OR-001] — Per-Run Token and Cost Tracking
+
+**Justification against product objective:**
+
+The product's orchestrated agent runs invoke the Claude Agent SDK and the Anthropic Messages API repeatedly; every run accumulates token spend that is currently invisible to the user. The `agent_runs` table stores the run record but no token counts. Users who delegate a complex ticket have no way to know whether it consumed $0.03 or $3.00.
+
+Run 2's research adds significant weight to this:
+1. The "$47K runaway agent" incident (Nov 2025) that accelerated industry adoption of per-run budget tracking — a real failure mode this product is exposed to.
+2. OTel GenAI v1.37+ standardized `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` as the baseline observability unit for any agentic system.
+3. The Anthropic SDK already returns `usage` on every `Message` response; the Claude Agent SDK's `SDKMessage` for `assistant` type wraps the full `Message`, so `msg.message.usage` is available today in `runEngine.ts` without any SDK upgrade.
+
+Compared to the other new ideas:
+- **FA-001 (Parallel delegation)**: Higher impact ceiling but depends on fan-out UX design and run-approval flood-risk; correct to plan separately.
+- **KA-001 (Lifecycle sync)**: Very low complexity and high UX value, but touches the "move tickets" logic with some risk of regressing manual moves; good for a later run.
+- **OR-005 (Diff view)**: Complements token tracking but requires a `base_sha` capture concern; better after token tracking is in.
+- **GH-001 (Auto-sync)**: Pure additive, low-risk, but lowest urgency.
+
+OR-001 wins on the axis of **cost predictability** — an indispensable property for any tool that can autonomously spend API budget, and the one property that is entirely absent today.
+
+---
+
+## 6. Implementation Plan: [OR-001] Per-Run Token and Cost Tracking
+
+**Objective:** Capture `input_tokens`, `output_tokens`, `cache_read_input_tokens`, and `cache_creation_input_tokens` from every assistant message during an orchestrated/agent run, accumulate per-run totals in SQLite, and surface a cost summary line in the run detail UI.
+
+---
+
+### 6.1 How Token Data Flows Today
+
+The Claude Agent SDK emits `SDKMessage` objects from `query()`. For `msg.type === "assistant"`, `msg.message` is an Anthropic `Message` object, which carries a `usage` field:
+```typescript
+interface Usage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+}
+```
+This data is already flowing through `runEngine.ts:handleMessage()` but is currently discarded. No new SDK calls, proxies, or external services are needed.
+
+---
+
+### 6.2 Affected Files
+
+| File | Change |
+|------|--------|
+| `src/server/db/schema.ts` | Add migration block to ALTER TABLE `agent_runs` with four new integer columns |
+| `src/server/db/runs.ts` | Add columns to `RunRow`; add to `toRun()`; add `addUsage()` accumulator method |
+| `src/server/agents/runEngine.ts` | Extract `msg.message.usage` in `handleMessage` and call `runsRepo.addUsage()` |
+| `src/shared/types.ts` | Add four token fields to the `AgentRun` Zod schema (with `.default(0)`) |
+| `src/client/components/RunListDetail.tsx` | Add a token/cost summary line under the run result |
+
+---
+
+### 6.3 Schema Migration
+
+SQLite supports `ALTER TABLE … ADD COLUMN` since version 3.1.3 (2005); Node 20+ ships SQLite ≥ 3.39, so `IF NOT EXISTS` on `ADD COLUMN` is available from 3.35+. Add a migration array to `src/server/db/index.ts` (or inline in `schema.ts`) that runs before the `CREATE TABLE IF NOT EXISTS` block:
+
+```typescript
+const COLUMN_MIGRATIONS = [
+  "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS input_tokens INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS output_tokens INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS cache_read_tokens INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS cache_creation_tokens INTEGER NOT NULL DEFAULT 0",
+];
+
+// Run in db init, wrapped in a try/catch per statement to tolerate already-existing columns
+// on databases that don't support IF NOT EXISTS.
+for (const sql of COLUMN_MIGRATIONS) {
+  try { db().prepare(sql).run(); } catch { /* column already exists */ }
+}
+```
+
+---
+
+### 6.4 DB Layer (`runs.ts`)
+
+Add to `RunRow`:
+```typescript
+input_tokens: number;
+output_tokens: number;
+cache_read_tokens: number;
+cache_creation_tokens: number;
+```
+
+Add to `toRun()`:
+```typescript
+inputTokens: r.input_tokens,
+outputTokens: r.output_tokens,
+cacheReadTokens: r.cache_read_tokens,
+cacheCreationTokens: r.cache_creation_tokens,
+```
+
+New method on `runsRepo`:
+```typescript
+addUsage(id: string, input: number, output: number, cacheRead: number, cacheCreation: number): void {
+  db()
+    .prepare(
+      `UPDATE agent_runs
+       SET input_tokens = input_tokens + ?,
+           output_tokens = output_tokens + ?,
+           cache_read_tokens = cache_read_tokens + ?,
+           cache_creation_tokens = cache_creation_tokens + ?
+       WHERE id = ?`,
+    )
+    .run(input, output, cacheRead, cacheCreation, id);
+},
+```
+
+---
+
+### 6.5 runEngine.ts
+
+In `handleMessage`, in the `msg.type === "assistant"` branch, after extracting blocks:
+
+```typescript
+const usage = (msg.message as { usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } }).usage;
+if (usage) {
+  runsRepo.addUsage(
+    runId,
+    usage.input_tokens ?? 0,
+    usage.output_tokens ?? 0,
+    usage.cache_read_input_tokens ?? 0,
+    usage.cache_creation_input_tokens ?? 0,
+  );
+}
+```
+
+Cast is needed because `SDKMessage`'s TypeScript type may not yet expose `usage` in the public SDK typedefs; the runtime value is present on the underlying `Message` object.
+
+---
+
+### 6.6 Shared Types (`types.ts`)
+
+In the `AgentRun` Zod schema, add:
+```typescript
+inputTokens: z.number().default(0),
+outputTokens: z.number().default(0),
+cacheReadTokens: z.number().default(0),
+cacheCreationTokens: z.number().default(0),
+```
+
+---
+
+### 6.7 UI (`RunListDetail.tsx`)
+
+Add a cost summary function. Pricing for Claude Sonnet 4.6 (model `DEFAULT_ORCH_MODEL`):
+- Input: $3.00 / 1M tokens → `$0.000003 / token`
+- Output: $15.00 / 1M tokens → `$0.000015 / token`
+- Cache read: $0.30 / 1M → `$0.0000003 / token`
+- Cache creation: $3.75 / 1M → `$0.000003750 / token`
+
+Use these as a single-model estimate; display "~$X.XX" to signal approximation. Do not store pricing in the DB (it would rot); compute at display time. Only show the cost line when at least one token field is non-zero.
+
+```typescript
+function formatTokens(run: AgentRun): string | null {
+  const total = run.inputTokens + run.outputTokens;
+  if (!total) return null;
+  const cost =
+    run.inputTokens * 0.000003 +
+    run.outputTokens * 0.000015 +
+    run.cacheReadTokens * 0.0000003 +
+    run.cacheCreationTokens * 0.00000375;
+  return `${(run.inputTokens + run.cacheReadTokens).toLocaleString()} in · ${run.outputTokens.toLocaleString()} out · ~$${cost.toFixed(3)}`;
+}
+```
+
+Display as a small `<Mono>` line in the run header section of `RunListDetail.tsx`.
+
+---
+
+### 6.8 Dependencies
+
+- No new npm packages
+- No new environment variables
+- SQLite ALTER TABLE — safe on Node 20+ (SQLite 3.39+)
+
+---
+
+### 6.9 Risks and Mitigations
+
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| `SDKMessage` TypeScript type does not expose `usage` | Medium | Cast to `unknown` then to the expected shape; runtime value is present on the `Message` object regardless of typedef coverage |
+| Existing DB installations lack the new columns | Low | Migration block runs on every startup; `IF NOT EXISTS` is idempotent |
+| Pricing constants go stale | Medium | Display "~$X" to signal approximation; add a comment linking to Anthropic pricing docs so future maintainers know to update |
+| Agentless runs (PTY) have no SDK usage → tokens stay 0 | Low | Acceptable; PTY runs don't use the Anthropic SDK directly; display nothing for PTY runs |
+| `addUsage` race condition on concurrent runs | Very Low | Each run has a unique `id`; SQLite serializes writes; `UPDATE ... SET x = x + ?` is atomic |
+
+---
+
+### 6.10 Validation Strategy
+
+1. **Unit test:** In `src/server/db/runs.ts` test, call `addUsage` twice and assert the accumulated totals are the sum.
+2. **Integration test (manual):** Delegate a ticket; after the run completes, inspect `agent_runs` in SQLite: `SELECT input_tokens, output_tokens FROM agent_runs ORDER BY created_at DESC LIMIT 1;` — expect non-zero values.
+3. **UI test:** Verify the cost line appears in `RunListDetail` for a completed run; verify it does not appear for a PTY run (tokens stay at 0).
+4. **Regression:** `npm test` must pass; `npm run typecheck` and `npm run lint` must pass.
+
+---
+
+### 6.11 Success Criteria
+
+- `input_tokens` and `output_tokens` are non-zero on completed orchestrated/agent runs
+- Cost summary line renders correctly in the run detail view
+- All existing tests pass
+- Typecheck and lint pass
+- No behavioral change in run execution or approval flow
+
+---
+
+*End of Run 2 — 2026-06-12*
