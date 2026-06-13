@@ -11,6 +11,7 @@
 | Run | Date | Ideas Added | Idea Selected |
 |-----|------|-------------|---------------|
 | 1 | 2026-06-07 | MA-001, MA-002, MA-003, OR-001, OR-002, OR-003, RT-001, SC-001, SC-002, SC-003, ME-001, ME-002, DF-001 | MA-002 |
+| 2 | 2026-06-13 | OR-005, MA-004, MA-005, RT-002, SC-004 | OR-001 |
 
 ---
 
@@ -104,6 +105,56 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 
 ### 2.6 Agent Observability
 
+*(Run 1 findings retained above; new findings from Run 2 begin at 2.7.)*
+
+---
+
+### 2.7 Claude Agent SDK — Cost Tracking API (Run 2, 2026-06-13)
+
+**Verified from official SDK documentation (code.claude.com/docs/en/agent-sdk/cost-tracking):**
+
+- The TypeScript Agent SDK exposes token usage at two granularities:
+  - **Per-step:** each `assistant` message carries `message.message.usage` (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`). Parallel tool calls within one step share the same `message.message.id` — deduplicate by ID to avoid double-counting.
+  - **Per-query total:** the `result` message carries `message.total_cost_usd` (cumulative estimated USD cost) and `message.modelUsage` (map of model name → `{ costUSD, inputTokens, outputTokens, cacheReadInputTokens, cacheCreationInputTokens }`).
+- `total_cost_usd` is a client-side estimate from a bundled price table. For authoritative billing, the Usage and Cost API or the Claude Console is the ground truth.
+- **June 15, 2026 billing change (VERIFIED):** Agent SDK usage now bills against a separate monthly credit pool at API list prices ($3/M input tokens, $15/M output tokens for Sonnet class). Pro plan: $20/month of SDK credit; Max 5×: $100. Agentic runs consume ~7× more tokens than single-prompt sessions.
+  - Sources: [Claude Agent SDK Billing Split](https://claudcod.com/blog/claude-agent-sdk-billing-split/); [Track cost and usage](https://code.claude.com/docs/en/agent-sdk/cost-tracking); [Tracking Costs and Usage](https://docs.claude.com/en/api/agent-sdk/cost-tracking)
+- **Current codebase gap:** `runEngine.ts:handleMessage()` processes `result` messages but reads only `msg.result` (summary text) and ignores `msg.total_cost_usd` and `msg.modelUsage`. Zero cost data is stored or displayed anywhere.
+
+**Conflict note:** `total_cost_usd` is described as an estimate that can drift from actual billing. Using it for display purposes (not billing) is safe; flag in the UI that it is an estimate.
+
+---
+
+### 2.8 Prompt Cache TTL Extension for Orchestrated Runs (Run 2, 2026-06-13)
+
+**Verified from official SDK documentation (code.claude.com/docs/en/agent-sdk/cost-tracking):**
+
+- Cache writes by the Agent SDK default to a **5-minute TTL** when using an API key.
+- Setting `ENABLE_PROMPT_CACHING_1H=1` in the options `env` object upgrades cache writes to a **1-hour TTL**.
+- Cost trade-off: 1-hour cache writes are billed at a higher write rate than 5-minute writes; the break-even is any session where the same context would otherwise be re-cached more than once within an hour.
+- Typical orchestrated runs in this codebase run for several minutes to tens of minutes — well within the 5-minute TTL expiry risk window. A run that takes 8 minutes and has a cache miss at minute 6 pays a full re-cache write mid-run.
+  - Source: [Track cost and usage](https://code.claude.com/docs/en/agent-sdk/cost-tracking)
+- **Subscription plan users** (Claude Pro/Max) already receive 1-hour TTL automatically without this variable.
+
+---
+
+### 2.9 Context Compression without Paraphrase (Run 2, 2026-06-13)
+
+**Key advances:**
+
+- **Compression without paraphrase** (Morph Compact): achieves 50–70% context reduction where every surviving sentence is verbatim from the original (98% verbatim accuracy). Contrast with summarization (MA-001), which paraphrases and can lose precision.
+  - Source: [Agent Context Engineering 2026 — AgentMarketCap](https://agentmarketcap.ai/blog/2026/04/11/agent-context-engineering-sliding-windows-memory-2026)
+- **ACON (Agent Context Optimization Networks):** agents learn from their own context-induced failures to refine information retention and compression over time — "failure-driven guideline optimization." Applied to long-running tasks where the agent must maintain task coherence over 50+ steps.
+  - Source: [Agent Context Engineering 2026 — AgentMarketCap](https://agentmarketcap.ai/blog/2026/04/11/agent-context-engineering-sliding-windows-memory-2026)
+- **Triggering heuristic:** summarize/compress when hitting 70–80% of context capacity. For Claude Sonnet 4.6 with a 200K token window, this is ~160K tokens — typically reached in Mangler conversations with many tool calls and large ticket/note payloads.
+  - Source: [Context Window Management Strategies — apxml.com](https://apxml.com/courses/langchain-production-llm/chapter-3-advanced-memory-management/context-window-management)
+- **65% of enterprise AI agent failures** stem from context drift, not model capability (PATTERN — from aggregated reports, not a single primary study).
+  - Source: [Context Window Overflow — Redis](https://redis.io/blog/context-window-overflow/)
+
+**Conflict note:** MA-001 in the ledger proposes LLM-based summarization; the Morph Compact approach is architecturally different (no LLM call needed, verbatim accuracy) but requires the Morph API, adding an external dependency. A local alternative (sliding window: drop middle messages, keep system + first K + last N) achieves partial compression with zero dependencies and is the safer starting point.
+
+---
+
 **Key advances (2025–2026):**
 
 - **OpenTelemetry + GenAI semantic conventions** are the emerging standard: standardized attributes for LLM calls, tool invocations, agent reasoning steps, token usage, and costs. Vendor-neutral export.
@@ -163,13 +214,39 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 
 ---
 
+#### [MA-004] Layered System Prompt Caching (Split into Multiple Cache Breakpoints)
+- **Date:** 2026-06-13
+- **Status:** Proposed
+- **Enabling advancement:** Anthropic prompt caching — up to 4 cache breakpoints per request; MA-002 confirmed the mechanism works in this codebase
+- **Gap addressed:** MA-002 (Done) merged the entire system string (base prompt + definitions + agents) into a single cache block. If any part changes (e.g., a definition is edited, a new agent is added), the entire block is invalidated. The three parts have different volatility: base system prompt is session-invariant; definitions change when the user edits them; agents prompt changes when the user adds/removes agents. One shared block means the cheapest change (adding an agent) forces a full re-cache of the most expensive part (all definitions text).
+- **User benefit:** Only the changed segment is re-cached when the user edits a definition or adds an agent. The stable base prompt continues to serve cache reads throughout the session.
+- **Approach:** In `mangler.ts`, restructure the `system` array from one block to three (or two when definitions/agents are empty): Block 1 = `manglerSystemPrompt()` with `cache_control`; Block 2 = `manglerDefinitionsPrompt()` with `cache_control` (omitted if empty); Block 3 = `manglerAgentsPrompt()` without `cache_control` (agents list is shorter, changes more often, and caching it adds marginal value). Memory injection remains appended to block 3's text since it changes every turn and must never be cached.
+- **Affected files:** `src/server/agents/mangler.ts`
+- **Complexity:** Very Low (restructure existing array construction; no new dependencies)
+- **Risk:** Anthropic enforces a maximum of 4 cache breakpoints per request. Current structure uses 1; proposed uses 2. Well within the limit.
+
+---
+
+#### [MA-005] Sliding-Window Context Compression for Long Mangler Sessions
+- **Date:** 2026-06-13
+- **Status:** Proposed
+- **Enabling advancement:** Context window management research (2026): sliding windows + hierarchical summarization reduce context by 50–70% while preserving task coherence; Morph Compact achieves 98% verbatim accuracy; triggering at 70–80% capacity is the consensus heuristic
+- **Gap addressed:** MA-001 (Proposed) proposes LLM-based summarization at the `MAX_TURNS` boundary. A complementary and lower-risk approach is a sliding window: when message history grows past a configurable byte threshold (proxy for token count), silently drop the oldest user+assistant pairs that are not tool-call-related, keeping the system prompt and the N most-recent exchanges. This avoids the LLM call and tool-result ID pairing risks of summarization.
+- **User benefit:** Mangler sessions no longer stall at `MAX_TURNS = 12`. The conversation can run indefinitely without an LLM summarization call; only the oldest non-critical exchanges are dropped. Users working through a complex project across many turns no longer hit a hard wall.
+- **Approach:** Before each turn in the `for (let turn = 0; turn < MAX_TURNS; turn++)` loop, estimate message byte length. If total exceeds `COMPRESS_THRESHOLD` (e.g., 200 KB, ~50K tokens), remove pairs from the front of the `messages` array that are plain text exchanges (no `tool_use` or `tool_result` blocks). Tool-call pairs must be kept contiguous or removed together (Anthropic requires `tool_result` to follow its `tool_use`). Broadcast a `mangler.delta` explaining that older context was trimmed. Remove the `MAX_TURNS` guard or raise it substantially once compression is in place.
+- **Affected files:** `src/server/agents/mangler.ts`
+- **Complexity:** Medium (message structure inspection to identify safe-to-drop pairs; byte estimation heuristic; must preserve tool-call pair integrity)
+- **Risk:** Dropped context may cause Mangler to forget earlier decisions in the session. Users should be notified when compression fires. Cannot recover dropped context without a separate memory/storage step (see MA-001).
+
+---
+
 ### Component: Orchestrated Agent Runs
 
 ---
 
 #### [OR-001] Per-Run Token and Cost Tracking
 - **Date:** 2026-06-07
-- **Status:** Proposed
+- **Status:** Planned (Run 2, 2026-06-13 — see Section 6)
 - **Enabling advancement:** OpenTelemetry GenAI semantic conventions; Anthropic SDK `usage` field on every message response
 - **Gap addressed:** `agent_events` stores text events but no token counts, latency, or cost. Users have no visibility into what a run costs.
 - **User benefit:** Run detail view shows "12,400 input tokens · 3,200 output tokens · ~$0.037" per run. Enables cost attribution per project/ticket.
@@ -205,6 +282,19 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 
 ---
 
+#### [OR-005] 1-Hour Prompt Cache TTL for Orchestrated and Agent Runs
+- **Date:** 2026-06-13
+- **Status:** Proposed
+- **Enabling advancement:** `ENABLE_PROMPT_CACHING_1H` env variable in the Claude Agent SDK (verified, 2026-06-13)
+- **Gap addressed:** The Agent SDK defaults to a 5-minute prompt cache TTL when using an API key. Typical orchestrated runs take 5–20 minutes; a cache miss partway through a run triggers a full re-cache write, erasing the cost benefit of the original write. The 1-hour TTL eliminates this mid-run expiry for all runs shorter than an hour.
+- **User benefit:** Reduced cost on cache writes for any orchestrated or agent run exceeding 5 minutes. No behavioral change. Zero risk.
+- **Approach:** In `src/server/agents/orchestrator.ts` and `src/server/agents/agentRun.ts`, pass `env: { ...process.env, ENABLE_PROMPT_CACHING_1H: "1" }` inside the `options` object of each `query()` call. One line per file.
+- **Affected files:** `src/server/agents/orchestrator.ts`, `src/server/agents/agentRun.ts`
+- **Complexity:** Very Low (1 line per file; no schema change, no UI change)
+- **Risk:** 1-hour write cost is higher than 5-minute write cost; on very short runs (< 1 minute), this may cost slightly more. For typical runs > 5 minutes, break-even is immediate. Subscription (Pro/Max) users already get 1-hour TTL automatically and are unaffected.
+
+---
+
 ### Component: Real-time Hub
 
 ---
@@ -219,6 +309,19 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 - **Affected files:** `src/server/realtime/hub.ts`, `src/shared/ws.ts`, `src/client/lib/ws.ts`, `src/client/components/OrchestratedRunView.tsx`
 - **Complexity:** Medium (sequence numbering, replay endpoint, client reconnect logic with exponential backoff)
 - **Risk:** Hub seq and DB event seq must stay in sync; replay must not re-emit events to other subscribers; memory pressure from buffering high-frequency runs is low (replay comes from DB, not in-memory)
+
+---
+
+#### [RT-002] Per-Client Run Event Subscription Filter
+- **Date:** 2026-06-13
+- **Status:** Proposed
+- **Enabling advancement:** Standard WebSocket subscription/filter pattern; confirmed by WebSocket.org reconnection guide (2026)
+- **Gap addressed:** `hub.ts:broadcast()` sends every `run.event` message to every connected WebSocket client. A client viewing the Projects page receives streaming run events for runs it has never opened. As runs grow in event volume (tool calls, large text blocks), this creates unnecessary bandwidth and client-side filtering work.
+- **User benefit:** Each client only receives events for runs it has explicitly subscribed to. Clients on the Projects or Schedules pages receive zero run-event noise. Scales cleanly as the number of simultaneous runs grows.
+- **Approach:** Add a `subscriptions: Set<string>` (set of run IDs) to each connected WS client entry in the hub. On connection, client sends `{type: "subscribe_run", runId}` and `{type: "unsubscribe_run", runId}`. In `broadcast()`, for `run.event` messages, only send to clients whose subscription set includes the `runId`. Broadcast all other message types unchanged (board updates, mangler events, etc. are low-volume and globally relevant).
+- **Affected files:** `src/server/realtime/hub.ts`, `src/shared/ws.ts`, `src/client/lib/ws.ts`, `src/client/components/OrchestratedRunView.tsx`
+- **Complexity:** Low (modify hub client tracking from `Set<WebSocket>` to `Map<WebSocket, Set<string>>`; add subscription messages to the WS contract)
+- **Risk:** Clients that forget to subscribe will silently miss run events. Must ensure `OrchestratedRunView` subscribes on mount and unsubscribes on unmount.
 
 ---
 
@@ -261,6 +364,19 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 - **Affected files:** `src/server/scheduler.ts`, `src/server/db/schedules.ts`, `src/client/pages/SchedulesPage.tsx`
 - **Complexity:** Low (compare expected next_run_at at shutdown vs. startup; store missed count)
 - **Risk:** Minimal
+
+---
+
+#### [SC-004] Schedule-to-Run Traceability
+- **Date:** 2026-06-13
+- **Status:** Proposed
+- **Enabling advancement:** Agentic workflow best practices — traceability between trigger and run is a named requirement in enterprise agent deployments (Virtido, 2026)
+- **Gap addressed:** When a schedule fires and creates an agent run (via `fireAgentSchedule`), the run has no reference back to the schedule that created it. A user viewing the Runs page cannot tell which schedule triggered a given run, and the Schedules page cannot show "last 5 runs fired by this schedule."
+- **User benefit:** Every schedule-triggered run is linkable to its source schedule. The Schedules page can show recent run history inline. Debugging a misbehaving schedule no longer requires correlating timestamps manually.
+- **Approach:** Add `triggered_by_schedule_id TEXT REFERENCES schedules(id) ON DELETE SET NULL` to the `agent_runs` table. Pass the schedule ID into `runsRepo.create()` when called from `fireAgentSchedule`. Add a `listBySchedule(scheduleId: string)` query to `runsRepo`. Render the last 3 triggered runs in the schedule card on `SchedulesPage.tsx`.
+- **Affected files:** `src/server/db/schema.ts`, `src/server/db/runs.ts`, `src/server/scheduler.ts`, `src/shared/types.ts`, `src/client/pages/SchedulesPage.tsx`
+- **Complexity:** Low (schema migration + FK wiring + UI list)
+- **Risk:** Schema migration must handle existing runs gracefully (NULL for old rows, which is the default via `ON DELETE SET NULL`).
 
 ---
 
@@ -421,3 +537,186 @@ Pass `system` to `messages.create()`. The Anthropic SDK accepts `TextBlockParam[
 ---
 
 *End of Run 1 — 2026-06-07*
+
+---
+
+## Run 2 — 2026-06-13
+
+## 4b. Improvement Selection (Run 2)
+
+### Selected: [OR-001] — Per-Run Token and Cost Tracking
+
+**Exclusions (all remaining Proposed ideas):**
+
+| Idea | Reason excluded this run |
+|------|--------------------------|
+| MA-001 (Summarization) | Higher complexity; depends on context structure constraints; better after MA-005 sliding window is implemented |
+| MA-003 (Adaptive Thinking) | Behavioral risk; low urgency relative to cost visibility |
+| MA-004 (Layered Caching) | Very low complexity but purely incremental on MA-002; cost benefit is marginal per turn |
+| MA-005 (Sliding-Window Compression) | Medium complexity; the MAX_TURNS guard is a real UX issue but secondary to cost visibility |
+| OR-002 (Run Resume) | Session resume API is now fully documented; medium complexity due to UI work needed |
+| OR-003 (Granular Tool Approval) | Good UX feature; lower urgency than cost visibility |
+| OR-005 (1-Hour Cache TTL) | Very Low complexity, high ratio, but trivially combined with OR-001 (same files, same deploy) |
+| RT-001 (Event Replay) | Medium complexity; the agent_events table already provides data; plan is sound but implementation risk is higher |
+| RT-002 (Subscription Filter) | Low complexity but a scalability optimization, not a user-facing feature |
+| SC-001–SC-004 (Scheduling) | Schedule improvements are secondary to run visibility |
+| ME-001, ME-002 (Memory) | High complexity or Honcho-dependent |
+| DF-001 (Version History) | Medium complexity; correct but not urgent |
+
+**Justification:**
+
+The June 15, 2026 billing change makes cost tracking no longer optional. Agent SDK usage now bills at API rates from a separate monthly credit pool. A user whose orchestrated runs each cost $0.04–$0.12 will exhaust $20 of monthly credit in 200–500 runs — a realistic number for an active user delegating tasks daily. There is currently **zero cost signal** anywhere in the product.
+
+The SDK provides the exact data needed via a single field on the `result` message (`message.total_cost_usd`). The current `handleMessage()` function in `runEngine.ts` processes `result` messages and ignores this field. Adding cost capture requires:
+1. One new nullable `REAL` column on `agent_runs`
+2. Three lines in `runEngine.ts` to read and persist the field
+3. One repo method `setCost()`
+4. A cost badge in `RunListDetail.tsx` and `RunBody.tsx`
+
+No new dependencies. No API surface changes. No behavioral risk. The plan is exactly specified by verified SDK documentation.
+
+OR-005 (1-Hour Cache TTL) will be bundled into this plan's implementation since it affects the same orchestrator and agent run files and can be deployed as a single change.
+
+---
+
+## 6. Implementation Plan: [OR-001] Per-Run Cost Capture + [OR-005] 1-Hour Cache TTL Bundle
+
+**Objective:** Store and display the estimated USD cost of every orchestrated and agent SDK run; simultaneously extend prompt cache TTL to 1 hour for all non-subscription API users.
+
+### 6.1 How the SDK Exposes Cost
+
+From the verified SDK docs (`code.claude.com/docs/en/agent-sdk/cost-tracking`):
+
+```typescript
+// When msg.type === "result":
+msg.total_cost_usd   // number | undefined — cumulative estimated cost for this query() call
+msg.modelUsage       // { [modelName]: { costUSD, inputTokens, outputTokens, cacheReadInputTokens, cacheCreationInputTokens } }
+```
+
+The result message is already handled in `runEngine.ts:handleMessage()` at line 82–88. It calls `runsRepo.setSummary()` and `runsRepo.setStatus()` but ignores `total_cost_usd`.
+
+### 6.2 Affected Files
+
+| File | Change |
+|------|--------|
+| `src/server/db/schema.ts` | Add `cost_usd REAL` column to `agent_runs` |
+| `src/shared/types.ts` | Add `costUsd: number \| null` field to `AgentRun` Zod schema |
+| `src/server/db/runs.ts` | Add `cost_usd` to `RunRow`, `toRun()`, `create()`, and new `setCost(id, cost)` method |
+| `src/server/agents/runEngine.ts` | In `handleMessage()`, read `msg.total_cost_usd` on `result` and call `runsRepo.setCost()` |
+| `src/server/agents/orchestrator.ts` | Pass `env: { ...process.env, ENABLE_PROMPT_CACHING_1H: "1" }` in `query()` options (OR-005) |
+| `src/server/agents/agentRun.ts` | Same OR-005 env option in its `query()` call |
+| `src/client/components/RunListDetail.tsx` | Display `costUsd` as a `$0.0123` badge in the run list item and detail header |
+| `src/client/components/RunBody.tsx` | (Optional) Show cost in the run metadata bar if the component renders run metadata |
+
+### 6.3 Implementation Approach
+
+**Schema migration** — append to `schema.ts` SCHEMA string:
+
+```sql
+ALTER TABLE agent_runs ADD COLUMN cost_usd REAL;
+```
+
+(SQLite `ALTER TABLE … ADD COLUMN` is safe for additive changes; existing rows get `NULL`.)
+
+**Type update** — in `shared/types.ts`, add to `AgentRun`:
+
+```typescript
+costUsd: z.number().nullable(),
+```
+
+**Repo update** — in `runs.ts`:
+
+```typescript
+// RunRow interface: add
+cost_usd: number | null;
+
+// toRun(): add
+costUsd: r.cost_usd,
+
+// create(): add to INSERT and the run object
+costUsd: null,
+
+// new method:
+setCost(id: string, cost: number): void {
+  db().prepare("UPDATE agent_runs SET cost_usd = ? WHERE id = ?").run(cost, id);
+},
+```
+
+**runEngine.ts** — in `handleMessage()`, in the `result` branch:
+
+```typescript
+if (msg.type === "result") {
+  // existing lines:
+  const summary = msg.subtype === "success" ? msg.result : `ended: ${msg.subtype}`;
+  emit(run.id, "result", { subtype: msg.subtype, text: summary });
+  runsRepo.setSummary(runId, String(summary).slice(0, 800));
+  runsRepo.setStatus(runId, msg.subtype === "success" ? "done" : "failed");
+  // new line:
+  if (msg.total_cost_usd != null) runsRepo.setCost(runId, msg.total_cost_usd);
+  return true;
+}
+```
+
+**orchestrator.ts / agentRun.ts** — OR-005 bundle, pass env in options:
+
+```typescript
+const q = query({
+  prompt,
+  options: {
+    cwd: run.cwd,
+    model: run.model ?? DEFAULT_ORCH_MODEL,
+    permissionMode: "plan",
+    canUseTool,
+    maxTurns: MAX_TURNS,
+    env: { ...process.env, ENABLE_PROMPT_CACHING_1H: "1" },
+  },
+});
+```
+
+**UI — RunListDetail.tsx** — in the run list item, after the status Mono:
+
+```tsx
+{run.costUsd != null && (
+  <Mono title="Estimated run cost">~${run.costUsd.toFixed(4)}</Mono>
+)}
+```
+
+In the detail header section (where `selected.status` is shown), add the same badge inline.
+
+### 6.4 Dependencies
+
+- `@anthropic-ai/claude-agent-sdk` — already installed; `result.total_cost_usd` is documented as of the current version
+- No new npm packages
+- SQLite `ALTER TABLE` migration — additive, no data loss
+
+### 6.5 Risks and Mitigations
+
+| Risk | Likelihood | Mitigation |
+|------|------------|------------|
+| `total_cost_usd` is `undefined` on some result subtypes | Low | Guard with `!= null` check before calling `setCost` |
+| SDK version in use predates `total_cost_usd` on result message | Very Low | Verify field exists in `SDKResultMessage` type; null-guard means zero production impact if absent |
+| Users mistake estimate for authoritative billing | Low | Label as "~$" (tilde prefix) in the UI and add a tooltip: "Estimated cost. See Claude Console for authoritative billing." |
+| `ENABLE_PROMPT_CACHING_1H` breaks runs on subscription plans | None | Docs state subscription users already receive 1-hour TTL; this env var is a no-op for them |
+| SQLite migration fails | Very Low | `ADD COLUMN` is unconditional; SCHEMA string is applied idempotently via `CREATE TABLE IF NOT EXISTS` pattern; ADD COLUMN needs a migration guard |
+
+**Migration guard:** The `SCHEMA` in `schema.ts` is used by `db/index.ts` to initialize the schema. Since it uses `CREATE TABLE IF NOT EXISTS`, new tables are safe, but `ALTER TABLE … ADD COLUMN` will fail if the column already exists on a re-run. Inspect how `db/index.ts` applies the schema to determine whether the ALTER needs a conditional guard (e.g., check `pragma table_info(agent_runs)` first).
+
+### 6.6 Validation Strategy
+
+1. **Type check:** `npm run typecheck` — `costUsd` must appear on `AgentRun` and `RunRow` with no type errors
+2. **Unit test:** In `src/server/db/runs.test.ts` (or similar), add a test that creates a run, calls `setCost(id, 0.0123)`, and asserts `runsRepo.get(id)?.costUsd === 0.0123`
+3. **Integration test (manual):** Start dev server; delegate a ticket to an orchestrated agent run; wait for completion; inspect the run in the UI — verify the `~$0.XXXX` badge appears in the list item and detail header
+4. **Regression test:** `npm test` — all existing run-related tests must pass unchanged
+5. **Build verification:** `npm run build` — confirms the schema migration change doesn't break tsup compilation
+
+### 6.7 Success Criteria
+
+- `cost_usd` column exists in `agent_runs` after server start
+- Completed orchestrated and agent runs display a cost estimate in the UI
+- PTY runs show no cost badge (cost is undefined/null — they don't use the Agent SDK)
+- `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` all pass
+- No observable behavioral change in run execution
+
+---
+
+*End of Run 2 — 2026-06-13*
