@@ -11,6 +11,7 @@
 | Run | Date | Ideas Added | Idea Selected |
 |-----|------|-------------|---------------|
 | 1 | 2026-06-07 | MA-001, MA-002, MA-003, OR-001, OR-002, OR-003, RT-001, SC-001, SC-002, SC-003, ME-001, ME-002, DF-001 | MA-002 |
+| 2 | 2026-06-14 | KB-001, KB-002, MCP-001, MCP-002, MA-004, GH-001 | KB-001 |
 
 ---
 
@@ -24,15 +25,18 @@ Mangled Agents is a local-first, single-package full-stack TypeScript workspace 
 
 | # | Component | Primary Files | Maturity | Key Gaps |
 |---|-----------|--------------|----------|----------|
-| 1 | **Mangler Chat Agent** | `src/server/agents/mangler.ts`, `manglerTools.ts` | High | 12-turn hard cap with no summarization; no prompt caching; full message history sent each turn |
-| 2 | **Orchestrated Agent Runs** | `src/server/agents/orchestrator.ts` | High | Plan approval unlocks all tools globally; no token/cost metrics stored; no run resume after failure |
-| 3 | **PTY Terminal** | `src/server/agents/pty.ts`, `pty.serialize.ts` | Medium | No automatic reconnection; sessions marked stopped on server restart |
-| 4 | **Kanban Board** | `src/server/db/tickets.ts`, `src/shared/board.ts` | Medium | No ticket→run linking; no blocking relationships or story-point estimates |
-| 5 | **Real-time Hub** | `src/server/realtime/hub.ts` | Low-Medium | No sequence numbers; no event buffering; client disconnect = all live events lost |
-| 6 | **Definitions System** | `src/server/defs.ts`, `src/server/api/defs.ts` | Medium | No versioning; no diff history; no validation of definition schema |
-| 7 | **Scheduling** | `src/server/scheduler.ts`, `src/server/cron.ts` | Low | 30 s polling; no retry on failure; no error column; missed runs silently skipped |
-| 8 | **External Agent Chat** | `src/server/agents/externalAgentChat.ts`, `genie.ts` | Early | No streaming parity with Mangler; no tool-call transparency |
-| 9 | **Memory (Honcho)** | `src/server/honcho.ts` | Low | Off by default; requires external SaaS; no local fallback; conversation history grows unbounded |
+| 1 | **Mangler Chat Agent** | `src/server/agents/mangler.ts`, `manglerTools.ts` | High | 12-turn hard cap with no summarization; no prompt caching (fixed Run 1); full message history sent each turn; no conversation search |
+| 2 | **Orchestrated Agent Runs** | `src/server/agents/orchestrator.ts` | High | Plan approval unlocks all tools globally; no token/cost metrics stored; no run resume after failure; ticket not auto-advanced on completion |
+| 3 | **Local Agent Runs** | `src/server/agents/agentRun.ts`, `src/server/db/agents.ts` | Medium | Task agents have no feedback when bound to a ticket; no auto-advance of ticket on completion |
+| 4 | **PTY Terminal** | `src/server/agents/pty.ts`, `pty.serialize.ts` | Medium | No automatic reconnection; sessions marked stopped on server restart |
+| 5 | **Kanban Board** | `src/server/db/tickets.ts`, `src/shared/board.ts` | Medium | Ticket→run link exists (`agent_runs.ticket_id`) but run completion never advances ticket column; no ticket decomposition; no blocking relationships |
+| 6 | **Real-time Hub** | `src/server/realtime/hub.ts` | Low-Medium | `agent_events.seq` is populated per-run (verified) but hub broadcasts carry no seq; client disconnect = all live events lost |
+| 7 | **Definitions System** | `src/server/defs.ts`, `src/server/api/defs.ts` | Medium | No versioning; no diff history; no validation of definition schema |
+| 8 | **GitHub Integration** | `src/server/github/`, `src/server/db/githubSources.ts` | Early-Medium | Pulls rules/skills from public GitHub repos only (no auth); additive-only sync; no bidirectional push; no webhook-based triggers |
+| 9 | **MCP Servers** | `src/server/agents/mcp.ts`, `src/server/db/mcpServers.ts` | Medium | Process-level connection cache only; no health monitoring; no auto-discovery; servers only fail-visible on use |
+| 10 | **Scheduling** | `src/server/scheduler.ts`, `src/server/cron.ts` | Low | 30 s polling; no retry on failure; no error column; missed runs silently skipped |
+| 11 | **External Agent Chat** | `src/server/agents/externalAgentChat.ts`, `genie.ts` | Early | No streaming parity with Mangler; no tool-call transparency |
+| 12 | **Memory (Honcho)** | `src/server/honcho.ts` | Low | Off by default; requires external SaaS; no local fallback; conversation history grows unbounded |
 
 ---
 
@@ -421,3 +425,290 @@ Pass `system` to `messages.create()`. The Anthropic SDK accepts `TextBlockParam[
 ---
 
 *End of Run 1 — 2026-06-07*
+
+---
+
+## Run 2 — 2026-06-14
+
+### 2. Frontier Research Findings (Run 2)
+
+#### 2.7 Agentic Kanban and Ticket Lifecycle Automation
+
+**Key advances (2025–2026):**
+
+- **AIF Handoff** (GitHub, 2026): Autonomous kanban where tasks flow Backlog → Planning → Plan Ready → Implementing → Review → Done, each stage driven by a specialized AI subagent. Stage transitions happen automatically on agent completion.
+  - Source: [GitHub — lee-to/aif-handoff](https://github.com/lee-to/aif-handoff)
+- **Agent-Kanban** (GitHub, 2026): Daemon polls assigned tasks, sets up worktrees, and spawns a worker agent per task; on success, advances the card. Workers are released back to a pool.
+  - Source: [GitHub — saltbo/agent-kanban](https://github.com/saltbo/agent-kanban)
+- **Hermes Kanban** (May 2026): Supports automatic and manual task decomposition; agents propose sub-cards from a high-level ticket; CI/CD integration closes the loop.
+  - Source: [magnus919.com — Hermes Kanban, May 2026](https://magnus919.com/2026/05/the-hermes-kanban-a-complete-guide-to-multi-agent-task-orchestration/)
+- **Empirical failure patterns**: Among AI-generated PRs, reviewer-level abandonment (38%) and CI failure (17%) are dominant. Auto-advancing to a "Review" column is the bridge between agent output and human review.
+  - Source: [arxiv.org — Where Do AI Coding Agents Fail, 2601.15195](https://arxiv.org/pdf/2601.15195)
+- **Codebase confirmation**: `agent_runs.ticket_id` (FK to `tickets`), `ticketsRepo.move(id, columnId, position)`, and `appendPosition()` are all in place. Run completion already broadcasts `run.updated`. Ticket advancement requires zero schema changes.
+  - Source: VERIFIED — `src/server/db/tickets.ts`, `src/shared/board.ts`, `src/shared/types.ts` (DEFAULT_COLUMNS: backlog → todo → in_progress → review → done)
+
+#### 2.8 MCP Ecosystem: Discovery and Health
+
+**Key advances (2025–2026):**
+
+- **`.well-known/mcp.json` auto-discovery** (2026 MCP roadmap): Standardized server discovery so clients can auto-configure by fetching a well-known URL. Eliminates manual transport/command/URL entry for remote servers.
+  - Sources: [ekamoira.com — MCP Server Discovery 2026](https://www.ekamoira.com/blog/mcp-server-discovery-implement-well-known-mcp-json-2026-guide); [tedt.org — MCP 2026 Roadmap](https://tedt.org/MCPs-2026-Roadmap/)
+- **OAuth 2.1 for remote MCP servers** (spec): Remote MCP servers on HTTP/SSE now mandate OAuth 2.1 with PKCE S256, RFC 9728 Protected Resource Metadata, and RFC 7591 Dynamic Client Registration.
+  - Source: [workos.com — MCP in 2026](https://workos.com/blog/everything-your-team-needs-to-know-about-mcp-in-2026)
+- **MCP health gap**: No standard audit log or health signal from MCP servers. Production deployments need per-server status visibility; failed servers currently only surface on use (confirmed in `mcp.ts`).
+  - Sources: [prefect.io — Best MCP Deployment Platforms 2026](https://www.prefect.io/resources/best-mcp-deployment-platforms-enterprise-2026); VERIFIED — `src/server/agents/mcp.ts` `invalidateMcpServer()` only called reactively
+- **500+ public MCP servers** as of early 2026, governed by Linux Foundation / Agentic AI Foundation since Dec 2025.
+  - Source: [sitepoint.com — MCP Complete 2026 Guide](https://www.sitepoint.com/model-context-protocol-mcp/)
+
+#### 2.9 SQLite Hybrid Search for Agent Memory
+
+**Key advances (2025–2026):**
+
+- **FTS5 + vector hybrid** (2026): SQLite FTS5 full-text search combined with cosine vector similarity (via `sqlite-vec` or BLOBs) consistently outperforms single-signal retrieval. Reciprocal Rank Fusion merges both scores.
+  - Sources: [earezki.com — SQLite+FTS5 vs Vector DBs, Apr 2026](https://earezki.com/ai-news/2026-04-08-why-sqlitefts5-beats-vector-dbs-for-ai-agent-memory/); [zeroclaws.io — ZeroClaw Hybrid Memory](https://zeroclaws.io/blog/zeroclaw-sqlite-fts5-vector-hybrid-memory-explained/)
+- **BrainDB** (2026): 4,300+ memories at sub-1ms latency using 384-dim vector BLOBs + BM25 ranking.
+  - Source: [earezki.com — SQLite+FTS5 vs Vector DBs](https://earezki.com/ai-news/2026-04-08-why-sqlitefts5-beats-vector-dbs-for-ai-agent-memory/)
+- **FTS5-only path**: For keyword search across conversation history, FTS5 alone (no embeddings, no external model) provides immediate value at zero cost, zero latency, and zero new dependencies. `better-sqlite3` ships with FTS5 support via SQLite's built-in extension.
+  - Source: [gist.github.com — FTS5 conversation memory](https://gist.github.com/betoneh/79006333939dc2433e5e2f30428dd615); DEDUCED from `better-sqlite3` docs.
+
+#### 2.10 Claude Agent Teams (Released Feb 2026)
+
+**Key advances:**
+
+- **Claude Agent Teams** released Feb 5, 2026 (alongside Opus 4.6): multiple sessions coordinate as a team with a shared task list, direct teammate-to-teammate messaging, and a lead orchestrator. Multi-agent architectures measured at up to 90% higher benchmark scores than single-agent when properly parallelized.
+  - Sources: [cloudzero.com — Claude Code Agents 2026](https://www.cloudzero.com/blog/claude-code-agents/); [alexop.dev — Agent Teams](https://alexop.dev/posts/from-tasks-to-swarms-agent-teams-in-claude-code/)
+- **Pricing change (June 15, 2026)**: Agent SDK usage draws from a monthly Agent SDK credit pool separate from interactive limits. This increases cost visibility pressure for orchestrated runs.
+  - Source: [cloudzero.com — Claude Code Agents 2026](https://www.cloudzero.com/blog/claude-code-agents/)
+- **Conflict**: Agent Teams are experimental; production stability and SDK contract are unconfirmed for embedding in orchestrated runs. Marked as PATTERN — matches documented SDK roadmap but not independently verified in the current `@anthropic-ai/claude-agent-sdk` release.
+
+#### 2.11 GitHub Agentic Workflows (Technical Preview, Feb 2026)
+
+**Key advances:**
+
+- **GitHub Agentic Workflows** (technical preview, Feb 13, 2026): Markdown files in `.github/workflows/` describe automation goals; the `gh aw` CLI converts them to standard Actions workflows. Default read-only permissions; write ops use preapproved "safe outputs." Covers issue triage, PR review, CI failure analysis.
+  - Source: [github.blog — GitHub Agentic Workflows](https://github.blog/ai-and-ml/automate-repository-tasks-with-github-agentic-workflows/)
+- **Inbound webhook pattern**: An agent in GitHub Actions that calls an external webhook (or MCP server) on PR merge / CI failure is now a first-class GitHub pattern. This is the missing bridge between Mangled Agents and repository events.
+  - Source: [prompt2bot.com — AI PR Review GitHub Workflow](https://prompt2bot.com/blog/ai-pr-review-github-workflow)
+- **Conflict / caveat**: Agentic Workflows are in technical preview; the `gh aw` CLI is not GA and the API surface may change.
+
+---
+
+### 3. New Ideas (Run 2)
+
+---
+
+### Component: Kanban Board
+
+---
+
+#### [KB-001] Automated Ticket Stage Transition on Run Completion
+- **Date:** 2026-06-14
+- **Status:** Planned
+- **Enabling advancement:** AIF Handoff / Agent-Kanban autonomous stage transition pattern (2026); `ticketsRepo.move()` and `appendPosition()` already present; `agent_runs.ticket_id` FK already populated on delegation
+- **Gap addressed:** When an orchestrated or agent run linked to a ticket completes successfully, the ticket stays in its current column. The user must manually drag it to "Review" or "Done." This breaks the agentic loop — the whole point of delegation is to advance work automatically.
+- **User benefit:** The kanban board reflects actual work state without human intervention. A run completing successfully moves the ticket one column forward (e.g., In Progress → Review), surfacing it for human review exactly where reviewers expect it. A failed/stopped run leaves the ticket unmoved and visibly at risk.
+- **Approach:** Add an `advanceTicketOnRunSuccess(run: AgentRun)` helper in `src/server/agents/runEngine.ts`. It reads `run.ticketId` and `run.projectId`; if both are set, loads the ticket and project, finds the current column index in `project.columns`, and if there is a next column calls `ticketsRepo.move(ticket.id, nextColumn.id, appendPosition(...))`. Then broadcasts `{ type: "board.updated", projectId }`. Call this helper at the end of `startOrchestratedRun` and `startAgentRun` when the final status is `"done"`.
+- **Affected files:** `src/server/agents/runEngine.ts` (new helper), `src/server/agents/orchestrator.ts` (call site), `src/server/agents/agentRun.ts` (call site)
+- **Complexity:** Low (no schema changes, no new dependencies, ~40 lines total)
+- **Risk:** Users with custom column orders need the project's actual `columns` array (not the DEFAULT_COLUMNS constant) — must load from `projectsRepo`; already available via `run.projectId`. Edge case: ticket already in the last column must not wrap.
+
+---
+
+#### [KB-002] Mangler "Decompose Ticket" Tool
+- **Date:** 2026-06-14
+- **Status:** Proposed
+- **Enabling advancement:** Hermes Kanban decomposition pattern (May 2026); Mangler's `manglerTools.ts` tool system already supports structured tool definitions
+- **Gap addressed:** High-level tickets ("Build the auth system") are too coarse for a single agent run. Users manually break them into sub-tickets, a slow and error-prone process.
+- **User benefit:** Mangler can propose a decomposition of a ticket into 3–6 sub-tickets, each scoped to a single agent run. User reviews and confirms. Sub-tickets are created in the Backlog column automatically.
+- **Approach:** Add a `decompose_ticket` tool to `manglerTools.ts` that accepts `ticketId` and calls the LLM to generate sub-ticket titles/bodies, then calls `ticketsRepo.create()` for each. Return a summary to the user.
+- **Affected files:** `src/server/agents/manglerTools.ts`, `src/server/db/tickets.ts`
+- **Complexity:** Medium (LLM call in the tool, multiple DB writes, idempotency concern)
+- **Risk:** LLM may generate poor decompositions; needs user confirmation step before creation
+
+---
+
+### Component: MCP Servers
+
+---
+
+#### [MCP-001] MCP Server Health Monitoring
+- **Date:** 2026-06-14
+- **Status:** Proposed
+- **Enabling advancement:** Production MCP deployment best practices 2026 (Prefect); connection cache already in `mcp.ts`; `invalidateMcpServer()` called reactively on error
+- **Gap addressed:** MCP server failures are invisible until a Mangler turn tries to use the server and the error is swallowed with `console.error`. Users have no way to see which servers are healthy without checking logs.
+- **User benefit:** The MCP Servers page shows a status badge (Connected / Error / Unknown) and last error message per server. A "Test" button forces a check. No silent failures.
+- **Approach:** Add `last_status TEXT`, `last_error TEXT`, `last_checked_at INTEGER` columns to `mcp_servers` schema. On server start (and after any `invalidateMcpServer` call), run `testMcpServer()` in the background; write result to DB; broadcast `mcpServer.statusUpdated`. Surface in `McpServersPage.tsx`.
+- **Affected files:** `src/server/agents/mcp.ts`, `src/server/db/schema.ts`, `src/server/db/mcpServers.ts`, `src/client/pages/McpServersPage.tsx`
+- **Complexity:** Low-Medium (schema migration, background probe, UI badge)
+- **Risk:** Probing stdio servers spawns a process; must be careful about resource usage at startup if many servers are configured
+
+---
+
+#### [MCP-002] MCP Server Auto-Discovery via `.well-known/mcp.json`
+- **Date:** 2026-06-14
+- **Status:** Proposed
+- **Enabling advancement:** Emerging 2026 MCP `.well-known/mcp.json` discovery standard (Anthropic/Linux Foundation roadmap; Ekamoira.com guide)
+- **Gap addressed:** Adding a remote MCP server requires manually entering transport type, URL, and auth headers. The 2026 discovery standard allows a host to publish its server config at `https://host/.well-known/mcp.json`; clients can auto-import it.
+- **User benefit:** User pastes a base URL (e.g., `https://my-mcp-server.example.com`); the app fetches `/.well-known/mcp.json`, parses the config, and pre-fills the add-server form. One click instead of five fields.
+- **Approach:** Add a "Discover" input to `McpServersPage.tsx`. On submit, POST to `/api/mcp-servers/discover` with the base URL; the server fetches `/.well-known/mcp.json`, validates the schema, and returns a pre-populated server config. The client pre-fills the creation form.
+- **Affected files:** `src/server/api/mcpServers.ts` (new `/discover` endpoint), `src/client/pages/McpServersPage.tsx`
+- **Complexity:** Low (HTTP fetch + JSON parse + form pre-fill; no schema change)
+- **Risk:** `.well-known/mcp.json` schema is not yet ratified; may need to handle multiple draft formats; SSRF risk on the server-side fetch (must restrict to http/https, no localhost/internal ranges)
+
+---
+
+### Component: Mangler Chat Agent
+
+---
+
+#### [MA-004] Full-Text Conversation Search via SQLite FTS5
+- **Date:** 2026-06-14
+- **Status:** Proposed
+- **Enabling advancement:** SQLite FTS5 built into `better-sqlite3` at zero cost; BrainDB/ZeroClaw 2026 hybrid search patterns; no embedding required for keyword search
+- **Gap addressed:** There is no search across Mangler conversations. A user who remembers discussing a ticket or a decision made in a past session has no way to retrieve it. The `messages` table has no FTS index.
+- **User benefit:** A search input in `ManglerPage.tsx` (or a global search bar) lets users find past conversations by keyword, immediately filtered and ranked by relevance. Zero latency, zero cost, zero new dependencies.
+- **Approach:** Create an FTS5 virtual table `messages_fts(content, content_rowid)` mirroring the `messages` table text content. Populate via triggers on insert/update/delete. Add `/api/mangler/search?q=...` endpoint that runs `SELECT * FROM messages_fts WHERE messages_fts MATCH ?` with `bm25()` ranking. Return matching conversation IDs + snippets.
+- **Affected files:** `src/server/db/schema.ts` (FTS5 virtual table + triggers), `src/server/api/mangler.ts` (new search endpoint), `src/client/pages/ManglerPage.tsx` (search UI)
+- **Complexity:** Low-Medium (FTS5 DDL is ~10 lines; search API is ~20 lines; UI is a controlled input)
+- **Risk:** FTS5 content tables with triggers add ~1–2ms to every message insert; negligible at this scale. Snippet generation requires `snippet()` function — well-supported in FTS5.
+
+---
+
+### Component: GitHub Integration
+
+---
+
+#### [GH-001] GitHub Agentic Workflow Webhook Receiver
+- **Date:** 2026-06-14
+- **Status:** Proposed
+- **Enabling advancement:** GitHub Agentic Workflows technical preview (Feb 2026) — CI failure, PR merge, issue creation can trigger outbound webhooks; SC-002 (Event-Driven Triggers, Proposed) covers the server-side half
+- **Gap addressed:** Mangled Agents can only be triggered manually or on a cron schedule. There is no way for a GitHub repository event (CI failure, PR merged, issue labeled) to automatically start a Mangler conversation or agent run.
+- **User benefit:** "Whenever the test suite fails on main, ask Mangler to triage the failure" becomes a one-time GitHub webhook configuration. Closes the loop between repository activity and the local agent workspace.
+- **Approach:** Add a signed webhook receiver at `/api/github/webhook` (HMAC-SHA256 signature verification with a user-configured secret). Parse the event type (`workflow_run`, `pull_request`, `issues`) and map it to a `fireSchedule`-compatible call: create or reuse a conversation and inject a prompt describing the event. Expose webhook URL + secret in Settings.
+- **Affected files:** `src/server/api/github.ts` (new webhook handler), `src/server/env.ts` (webhook secret), `src/client/pages/SettingsPage.tsx` (webhook URL display)
+- **Complexity:** Medium (HMAC verification, event dispatch, prompt templating per event type)
+- **Risk:** Requires user to configure a GitHub webhook with the correct secret; HMAC verification must be constant-time to prevent timing attacks; runs triggered by webhooks need rate limiting to prevent runaway agent costs
+
+---
+
+## 4. Improvement Selection (Run 2)
+
+### Selected: [KB-001] — Automated Ticket Stage Transition on Run Completion
+
+**Justification against product objective:**
+
+The product's central promise is a closed loop: the user talks to Mangler → work items appear on the board → agents execute and advance the work. Today the loop is broken at the last step. When a run completes — whether orchestrated or agent-type — the linked ticket stays exactly where it was. The user must manually drag it to "Review" or "Done." This is friction that directly contradicts the "orchestrate while I'm away" value proposition.
+
+KB-001 closes that gap with the minimum possible code. The entire required infrastructure already exists: `agent_runs.ticket_id` links runs to tickets; `ticketsRepo.move()` and `appendPosition()` handle the move; `project.columns` carries the ordered column list; `broadcast()` notifies clients. The change adds one helper function and two call sites — approximately 40 lines — with no schema migration, no new dependency, and no behavioral risk to existing runs (runs without a ticket ID are a no-op).
+
+The pattern is validated by AIF Handoff, Agent-Kanban, and Hermes Kanban as table-stakes behavior in 2026 agentic development tools. The empirical finding that 38% of agent-generated PRs suffer reviewer-level abandonment underscores that the transition to "Review" must be automatic — if reviewers don't see it, they don't act.
+
+**Ideas excluded this run:**
+- RT-001 (Reconnection replay): High value and well-founded — the `agent_events.seq` column is confirmed populated — but medium complexity. Carry forward.
+- MA-004 (FTS5 search): High value, low complexity, but adds a UI surface that benefits from a design review. Carry forward.
+- MCP-001 (Health monitoring): Good operational improvement; lower urgency than closing the core agentic loop.
+- KB-002 (Ticket decomposition): Good, but depends on KB-001 closing the loop first.
+- GH-001 (Webhook receiver): Overlaps with SC-002 (Event-Driven Triggers, Proposed); should be scoped together.
+- MCP-002 (Auto-discovery): Low complexity but the `.well-known/mcp.json` spec is not yet ratified.
+
+---
+
+## 5. Implementation Plan: [KB-001] Automated Ticket Stage Transition
+
+**Objective:** When an orchestrated or agent-type run that is linked to a ticket completes with status `"done"`, automatically advance the ticket to the next column in the project's column order.
+
+### 5.1 Data Model (Verified — No Schema Changes Required)
+
+| Entity | Field | Role |
+|--------|-------|------|
+| `agent_runs` | `ticket_id TEXT` | FK to `tickets.id`; set when Mangler delegates a ticket |
+| `agent_runs` | `project_id TEXT` | FK to `projects.id` |
+| `tickets` | `column_id TEXT` | Current column |
+| `projects` | `columns_json TEXT` | Ordered `Column[]` array — source of truth for progression |
+| `ticketsRepo` | `.move(id, columnId, position)` | Persists the column change |
+| `appendPosition(positions)` | — | Computes position at end of target column |
+
+### 5.2 New Helper: `advanceTicketOnRunSuccess`
+
+Location: `src/server/agents/runEngine.ts` (the shared plumbing file — already imports `runsRepo` and `broadcast`; add `ticketsRepo` and `projectsRepo` imports).
+
+```typescript
+// Advance the ticket linked to `run` by one column when the run succeeds.
+// No-op if the run has no ticket, the ticket is already in the last column,
+// or either the ticket or project can't be loaded.
+export async function advanceTicketOnRunSuccess(run: AgentRun): Promise<void> {
+  if (!run.ticketId || !run.projectId) return;
+  const ticket = ticketsRepo.get(run.ticketId);
+  const project = projectsRepo.get(run.projectId);
+  if (!ticket || !project) return;
+  const idx = project.columns.findIndex((c) => c.id === ticket.columnId);
+  if (idx === -1 || idx === project.columns.length - 1) return;
+  const nextColumn = project.columns[idx + 1];
+  const positions = ticketsRepo
+    .listByProject(project.id)
+    .filter((t) => t.columnId === nextColumn.id)
+    .map((t) => t.position);
+  ticketsRepo.move(ticket.id, nextColumn.id, appendPosition(positions));
+  broadcast({ type: "board.updated", projectId: project.id });
+}
+```
+
+### 5.3 Call Sites
+
+**`src/server/agents/orchestrator.ts`** — add after `runsRepo.setStatus(run.id, "done")`:
+```typescript
+const finalRun = runsRepo.get(run.id);
+if (finalRun?.status === "done") await advanceTicketOnRunSuccess(finalRun);
+```
+
+**`src/server/agents/agentRun.ts`** — same pattern at the end of `startAgentRun`:
+```typescript
+const finalRun = runsRepo.get(run.id);
+if (finalRun?.status === "done") await advanceTicketOnRunSuccess(finalRun);
+```
+
+### 5.4 Affected Files
+
+| File | Change |
+|------|--------|
+| `src/server/agents/runEngine.ts` | New `advanceTicketOnRunSuccess` export; add `ticketsRepo`, `projectsRepo`, `appendPosition` imports |
+| `src/server/agents/orchestrator.ts` | One call at successful completion |
+| `src/server/agents/agentRun.ts` | One call at successful completion |
+
+No client changes, no schema migration, no new dependencies.
+
+### 5.5 Shared WS Message
+
+`board.updated` is already in the `ws.ts` contract (confirmed by `broadcast({ type: "github.sources.updated" })` pattern). The client's board page already re-fetches on board-related events. No client changes required.
+
+### 5.6 Edge Cases and Risks
+
+| Scenario | Handling |
+|----------|----------|
+| Run has no `ticketId` | Early return — no-op |
+| Ticket already in last column | `idx === project.columns.length - 1` guard — no wrap |
+| Project deleted between run start and completion | `projectsRepo.get` returns `undefined` — early return |
+| User has custom column order | Uses `project.columns` (DB-stored per project) — correct |
+| `ticketsRepo.move` fails (e.g., concurrent delete) | Exception propagates to caller; run status is already `"done"` — log only |
+| Run fails or is stopped | `advanceTicketOnRunSuccess` is only called on `"done"` status — ticket unmoved |
+
+### 5.7 Validation Strategy
+
+1. **Unit test** (`src/server/agents/runEngine.ts` or new `ticketSync.test.ts`): mock `ticketsRepo`, `projectsRepo`, `broadcast`; verify `move` is called with the correct next column; verify no-op cases (no ticket, last column, unknown column).
+2. **Integration test (manual)**: Create a project, add a ticket in "In Progress", start an orchestrated run linked to that ticket, let it complete, confirm the ticket appears in "Review" without a manual drag.
+3. **Edge case manual test**: Ticket in "Done" (last column) — confirm no wrap after a successful run.
+4. **Regression**: `npm test` — confirm existing orchestrator and agentRun tests pass. The new call only fires when status is `"done"` and is async/non-blocking relative to existing test mock structures.
+5. **Lint and typecheck**: `npm run lint && npm run typecheck` must pass.
+
+### 5.8 Success Criteria
+
+- Unit tests pass for all cases including edge cases
+- Manual demo: ticket advances one column on run `"done"`
+- Failed/stopped runs leave ticket unchanged
+- Runs without a ticket link are unaffected
+- All existing tests pass
+- Lint and typecheck clean
+
+---
+
+*End of Run 2 — 2026-06-14*
